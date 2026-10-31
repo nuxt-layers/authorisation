@@ -50,7 +50,7 @@ The owning capabilities supply the data through public interfaces. This layer do
 - `useAuthorisation()`: presentation hints only; never a security boundary.
 - HTTP endpoints are namespaced beneath `/api/authorisation/*` and require the host's subject resolver. The server validates inputs and returns coarse error codes, not internal details.
 
-The full public types, inputs, outputs, error codes and operation signatures are specified in this repository's [detailed contract](docs/contracts.md). That document is for capability maintainers; consumers should integrate against the public exports described here.
+Maintainers maintain the [technical specification](docs/specification.md) for internal design and verification. This `CONTRACT.md` is the sole consumer-facing documentation; essential public interface details must be stated here.
 
 ## Permissions
 
