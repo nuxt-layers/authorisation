@@ -16,3 +16,9 @@ overrides:
   # export. Remove once devtools depends on simple-git 4.
   '@simple-git/argv-parser': ^2.0.1
   "nuxt>undici": "8.12.3"
+
+  # Candidate fixes for Nitro's vulnerable transitive dependencies.
+  'archiver-utils>glob': 14.0.2
+  '@vercel/nft>glob': 14.0.2
+  'readdir-glob>minimatch': 11.0.1
+  'glob>minimatch': 11.0.1
