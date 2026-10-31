@@ -2,7 +2,7 @@
 
 ## What this is
 Nuxt 4 foundation layer for authorisation (may this subject perform this permission on this resource, now?).
-Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. British spelling everywhere ("authorisation"), including code and the manifest.
+Governed by `nuxt-layers/architecture-rules` (see its accepted ADRs); persistence follows ADR-0002. British spelling everywhere ("authorisation"), including code and the manifest.
 
 ## Commands
 - `pnpm install`, then `pnpm dev:prepare` for Nuxt types. Never add a `prepare`/`postinstall` script: Git installs would then pull devDependencies into hosts
@@ -15,7 +15,7 @@ Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. 
 ## Rules
 - Contract (`contracts/`, `shared/`) imports only zod. No Nuxt, Vue, h3, server code, drivers or other `@nuxt4-layers/*` packages. Enforced by `tests/contracts.test.ts`.
 - Public surface: package root, `./contracts`, `./capability`, `./presentation`, `./tailwind.css`, the `provide*` server functions (`provideAuthorisationClock` among them: optional, the system clock without it; `provideAuthorisationGovernance` and `provideAuthorisationSubjectResolver` required for changes and endpoints) and `migrateAuthorisationDatabase`, `authorise`, `requireAuthorisation`, `authorisationQualifies`, `countAuthorisationQualifying`, `listAuthorisationRoleAssignments`, `assignAuthorisationRole`, `unassignAuthorisationRole`, `defineAuthorisationRole`, `deleteAuthorisationRole`, `createAuthorisationGrant`, `revokeAuthorisationGrant`, `exportAuthorisationData`, `eraseAuthorisationPrincipal`, `getAuthorisationChanges`, `getAuthorisationAdministration`, `listAuthorisationAccessReview`, `listAuthorisationVisibleGroups`, `authorisationDefaultRoles`, `runAuthorisationMaintenance`, `relayAuthorisationOutbox`, `exportAuthorisationRoles`, `importAuthorisationRoles`, `disposeAuthorisationGroup`, `disposeAuthorisationTenant`, `exportAuthorisationTenantData`, `provideAuthorisationLegalHolds`, the `/api/authorisation/*` endpoints, `useAuthorisation()`, the default pages, the `Authorisation*` components and `useAuthorisationText()`, `useAuthorisationAction()`, `useAuthorisationRoutes()`. `server/internal` and `server/database` are private.
-- Storage: append-only migrations in `server/database/migrations.ts` (never edit a released one); parameterised SQL only; rows are validated before they reach a decision. Database suites need `AUTHORISATION_TEST_DATABASE_URL` (admin URL of a local, disposable PostgreSQL 16); they skip locally without it and fail in CI.
+- Storage: append-only migrations in `server/database/migrations.ts` (never edit a released one); parameterised SQL only; rows are validated before they reach a decision. Database suites need `AUTHORISATION_TEST_DATABASE_URL` (admin URL of a local, disposable PostgreSQL instance); they skip locally without it and fail in CI.
 - Authorisation stores no domain data, groups or memberships. Groups, lineage, tenants, memberships (with status) and personal groups come from Identity through the `AuthorisationDirectory` port. Follow platform-architecture's Group Model Definition. Authentication's principal is passed in structurally; never import either package.
 - Groups own information: a role or principal grant counts only while the principal is an active member (docs/contracts.md §5, §6). Creator provenance never grants access. The hierarchy confers no privilege unless an assignment is scoped `group-and-descendants`. Tenant isolation is a separate check. Keep the departure, no-implicit-inheritance and tenant-isolation tests.
 - Service identities (docs/contracts.md §15): roles through memberships like anyone, but never request, decide or qualify to approve a change; refused by the subject's `kind` or the directory's actor `kind` (`strong`). Keep the "service identities" tests in `tests/administration.test.ts`.
@@ -30,6 +30,6 @@ Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. 
 - Required ports fail closed. No implicit in-memory or file fallback stores.
 - No names, email addresses, resource attributes or other personal data in events or logs.
 - Defaults are secure; loosening policy requires a documented risk treatment.
-- Keep `CONTRACT.md`, `docs/threat-model.md` (control register) and `docs/roadmap.md` in step with code.
+- Keep `CONTRACT.md`, `docs/threat-model.md` (control register) and `PLAN.md` in step with code.
 - Platform-agnostic: the layer and its tests run alike on Windows, macOS and Linux. Tests that compare file paths with import specifiers or routes pass them through `toPosix` (`tests/support/paths.ts`) first: Node's path functions answer with `\` on Windows.
 - Package manager: pnpm. Commit `pnpm-lock.yaml`.
