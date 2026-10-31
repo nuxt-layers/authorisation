@@ -42,7 +42,7 @@ The host application:
 - supplies a directory through `provideAuthorisationDirectory` (required), adapting Identity's contract:
   - `resolveActor(principalId, options)` returns the principal's own `status` (`active`, `paused` or `suspended`, from the identity's state), their personal group (or `null` for identities without one) and direct memberships, each with its group (lineage and tenant) and `status` (`active`, `paused`, `suspended` or `ended`), or `null` for an unknown principal;
   - `describeGroup(groupId, options)` returns the group's lineage (root first, one parent per group) and its tenant, or `null`;
-  - both honour `options.consistency`: `strong` reads the source of truth with no cache; `bounded` may use a cache no older than `AUTHORISATION_MAX_STALENESS_SECONDS` (30 s). A failure must reject, never return stale or partial data (docs/contracts.md §10);
+  - both honour `options.consistency`: `strong` reads the source of truth with no cache; `bounded` may use a cache no older than `AUTHORISATION_MAX_STALENESS_SECONDS` (30 s). A failure must reject, never return stale or partial data (docs/specification.md §10);
   - the hierarchy it describes must not imply membership: a member of a parent group is not listed as a member of its children unless Identity's own versioned policy says so;
 - supplies Identity's governance facts through `provideAuthorisationGovernance` (required for every change request and decision; without it they fail closed), from iam-integration's `authorisationGovernanceFromIdentity`: for a group and a requester, the group's approval requirement and reference rule, the safety periods in force, its parent and root groups, whose personal group it is, the requester's recovery hold and the identities they control; whether a principal owns a group; and how many do. Read from Identity's own record at `strong` consistency; a failure rejects;
 - supplies the signed-in subject for the layer's endpoints through `provideAuthorisationSubjectResolver({ resolve(event) })` (required for the endpoints), adapting Authentication's `getAuthenticatedPrincipal(event)`; null when nobody is signed in;
@@ -53,7 +53,7 @@ The host application:
 - imports `@nuxt4-layers/authorisation/tailwind.css` after Theme Manager's `presentation.css` when it keeps the default pages, and moves or disables them in `nuxt.config.ts` (`authorisation: { pages: { paths, enabled }, presentation }`);
 - supplies every domain capability's permission definitions through `provideAuthorisationPermissions` (once per capability is fine), each with the `effect` its capability declares (`view` or `change`; missing means `change`);
 - optionally supplies an event sink, which receives only refused decisions (`authorisation.denied`), and policy overrides;
-- optionally supplies the suite's clock through `provideAuthorisationClock` (docs/contracts.md §13): the same `{ now(): Date }` it gives every member, or none, so that each uses the system clock. Only its server code composes it; a clock that can be moved is for tests only;
+- optionally supplies the suite's clock through `provideAuthorisationClock` (docs/specification.md §13): the same `{ now(): Date }` it gives every member, or none, so that each uses the system clock. Only its server code composes it; a clock that can be moved is for tests only;
 - passes the authenticated principal from Authentication as the subject of each decision;
 - integration-tests the composed system, including negative tests for tenant isolation and for leaving a group.
 
