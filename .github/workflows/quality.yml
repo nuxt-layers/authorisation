@@ -1,0 +1,77 @@
+
+name: Quality
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  layer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Disposable database for storage tests (ADR-0002).
+        image: mirror.gcr.io/library/postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AUTHORISATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Bootstrap Corepack and install dependencies
+        run: |
+          npm exec --yes --package=corepack@0.36.0 -- corepack pnpm install --frozen-lockfile
+
+      - name: Prepare Nuxt
+        run: npm exec --yes --package=corepack@0.36.0 -- corepack pnpm dev:prepare
+
+      - name: Typecheck and unit tests
+        run: npm exec --yes --package=corepack@0.36.0 -- corepack pnpm check
+
+      - name: Build playground
+        run: npm exec --yes --package=corepack@0.36.0 -- corepack pnpm build:playground
+
+      - name: Install Chromium
+        run: npm exec --yes --package=corepack@0.36.0 -- corepack pnpm exec playwright install --with-deps chromium
+
+      - name: Browser and accessibility tests
+        run: npm exec --yes --package=corepack@0.36.0 -- corepack pnpm exec playwright test
+
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+
+  # Required aggregate status check for the protected master branch.
+  quality:
+    needs: [layer]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "Layer checks passed."
