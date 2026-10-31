@@ -66,7 +66,7 @@ Domain capabilities declare their permissions, e.g. `{ name: 'orders:process_ref
 
 ## Documentation
 
-- [Contract](docs/contracts.md): permissions, roles, grants and how a decision is made
+- [Contract](CONTRACT.md): permissions, roles, grants and how a decision is made
 - [Composition contract](docs/composition-contract.md): what a host supplies
 - [Threat model and control register](docs/threat-model.md)
 - [Roadmap](docs/roadmap.md)
