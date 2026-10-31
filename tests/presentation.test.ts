@@ -66,7 +66,7 @@ describe('semantic presentation', () => {
 
   it('uses every deliberate pairing and documents it for hosts', () => {
     const used = new Set(Object.values(authorisationClasses).flatMap(pairings))
-    const contracts = readFileSync('CONTRACT.md', 'utf8')
+    const contracts = readFileSync('docs/contracts.md', 'utf8')
     for (const { token, on } of DELIBERATE_PAIRINGS) {
       expect(used.has(`${token} on ${on}`), `${token} on ${on} unused`).toBe(true)
       expect(contracts, `${token} on ${on} undocumented`).toContain(`\`${token}\` on \`${on}\``)
