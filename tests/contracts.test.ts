@@ -1,0 +1,161 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, normalize, relative } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { toPosix } from './support/paths'
+import * as contracts from '../contracts'
+
+const root = normalize(join(import.meta.dirname, '..'))
+
+function files(dir: string): string[] {
+  return readdirSync(join(root, dir), { recursive: true, encoding: 'utf8' })
+    .filter(file => file.endsWith('.ts'))
+    .map(file => toPosix(join(dir, file)))
+}
+
+/** Import specifiers, with relative ones resolved to repository paths. */
+function imports(file: string): string[] {
+  const source = readFileSync(join(root, file), 'utf8')
+  return [...source.matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)].map(([, specifier]) =>
+    specifier!.startsWith('.') ? toPosix(relative(root, join(root, dirname(file), specifier!))) : specifier!)
+}
+
+const contractFiles = [...files('contracts'), ...files('shared')]
+
+describe('Authorisation public contract', () => {
+  it('exports the documented runtime values', () => {
+    expect(Object.keys(contracts).sort()).toEqual([
+      'APPROVAL_REFUSALS',
+      'AUTHORISATION_API_PREFIX',
+      'AUTHORISATION_APPROVAL_ROUTES',
+      'AUTHORISATION_CHANGES',
+      'AUTHORISATION_CHANGE_STATES',
+      'AUTHORISATION_CHANGE_TARGETS',
+      'AUTHORISATION_CHANGE_TYPES',
+      'AUTHORISATION_CORRELATION_HEADER',
+      'AUTHORISATION_ERROR_CODES',
+      'AUTHORISATION_ERROR_STATUS',
+      'AUTHORISATION_EVENT_PAYLOADS',
+      'AUTHORISATION_EVENT_TYPES',
+      'AUTHORISATION_MAX_STALENESS_SECONDS',
+      'AUTHORISATION_MEMBERSHIP_STATUSES',
+      'AUTHORISATION_PERMISSIONS',
+      'AUTHORISATION_PERMISSION_EFFECTS',
+      'AUTHORISATION_PRINCIPAL_KINDS',
+      'AUTHORISATION_PRINCIPAL_STATUSES',
+      'AUTHORISATION_RETENTION_BOUNDS',
+      'AUTHORISATION_RISK_LEVELS',
+      'AUTHORISATION_ROLE_DOCUMENT_FORMAT',
+      'AUTHORISATION_ROLE_DOCUMENT_VERSION',
+      'AuthorisationCompositionError',
+      'AuthorisationFailure',
+      'BUILT_IN_ROLE_IDS',
+      'CHANGE_REFUSALS',
+      'CONDITION_OPERATORS',
+      'DEFAULT_AUTHORISATION_POLICY',
+      'DEFAULT_GROUP_DEFAULT_ROLES',
+      'IDENTIFIER_PATTERN',
+      'OPEN_CHANGE_STATES',
+      'REASON_CODE_PATTERN',
+      'REVIEW_INTERVAL_DAYS',
+      'ROLE_ASSIGNMENT_SCOPES',
+      'STEP_UP_REQUIREMENTS',
+      'UUID_PATTERN',
+      'approvalRecordSchema',
+      'approvalRequirement',
+      'assignmentRisk',
+      'assuranceRecordSchema',
+      'authorisationEventSchema',
+      'canonicalJson',
+      'changeRequestSchema',
+      'chooseRoute',
+      'conditionSchema',
+      'correlationIdSchema',
+      'defaultRolesSchema',
+      'higherRisk',
+      'identifierSchema',
+      'instantSchema',
+      'isAuthorisationErrorCode',
+      'isPermissionName',
+      'isPermissionPattern',
+      'isSelfGrant',
+      'justificationReferenceSchema',
+      'justificationSchema',
+      'meetsStepUp',
+      'pendingChangeSchema',
+      'permissionDefinitionSchema',
+      'permissionPatternMatches',
+      'reasonCodeSchema',
+      'refuseApproval',
+      'resolveAuthorisationPolicy',
+      'roleDefinitionSchema',
+      'roleDocumentSchema',
+      'rolePermissionSchema',
+      'roleRisk',
+      'sha256DigestSchema',
+      'uuidSchema',
+      'versionSchema',
+    ])
+  })
+
+  it('imports nothing but zod and its own modules', () => {
+    for (const file of contractFiles) {
+      for (const target of imports(file)) {
+        expect(target === 'zod' || /^(contracts|shared)\//.test(target), `${file} imports ${target}`).toBe(true)
+      }
+    }
+  })
+
+  it('does not leak driver, vendor or other capabilities\' package names', () => {
+    const forbidden = /kysely|drizzle|supabase|^pg$|^@nuxt4-layers\//i
+    for (const file of contractFiles) {
+      for (const target of imports(file)) expect(target, file).not.toMatch(forbidden)
+    }
+  })
+
+  it('maps every error code to an HTTP status', () => {
+    for (const code of contracts.AUTHORISATION_ERROR_CODES) {
+      expect(contracts.AUTHORISATION_ERROR_STATUS[code]).toBeGreaterThanOrEqual(400)
+    }
+    expect(Object.keys(contracts.AUTHORISATION_ERROR_STATUS).sort())
+      .toEqual([...contracts.AUTHORISATION_ERROR_CODES].sort())
+  })
+
+  it('has no error code that would reveal whether a resource or group exists', () => {
+    for (const code of contracts.AUTHORISATION_ERROR_CODES) {
+      expect(code).not.toMatch(/not-found|unknown|exists|group|member/)
+    }
+    expect(contracts.isAuthorisationErrorCode('forbidden')).toBe(true)
+    expect(contracts.isAuthorisationErrorCode('unknown-group')).toBe(false)
+  })
+
+  it('namespaces every event type', () => {
+    for (const type of contracts.AUTHORISATION_EVENT_TYPES) {
+      expect(type).toMatch(/^authorisation\.[a-z-]+$/)
+    }
+    // Decisions change nothing: a refusal goes to the best-effort sink, never the outbox.
+    expect(contracts.AUTHORISATION_EVENT_TYPES).not.toContain('authorisation.denied')
+  })
+
+  it('reports a conflict as 409, with a rule code only for conflicts and validation failures', () => {
+    expect(contracts.AUTHORISATION_ERROR_STATUS.conflict).toBe(409)
+    expect(new contracts.AuthorisationFailure('conflict', 'self-grant').reason).toBe('self-grant')
+    expect(new contracts.AuthorisationFailure('forbidden', 'self-grant').reason).toBeNull()
+    expect(new contracts.AuthorisationFailure('conflict', 'Not A Code').reason).toBeNull()
+  })
+
+  it('does not grant platform-wide bypasses: no superuser role', () => {
+    expect(contracts.BUILT_IN_ROLE_IDS).not.toContain('superuser')
+    expect(JSON.stringify(contracts.DEFAULT_AUTHORISATION_POLICY)).not.toMatch(/superuser/)
+  })
+
+  it('makes hierarchy inheritance opt-in: the default assignment scope is the group alone', () => {
+    expect(contracts.ROLE_ASSIGNMENT_SCOPES[0]).toBe('group')
+    expect(contracts.ROLE_ASSIGNMENT_SCOPES).toEqual(['group', 'group-and-descendants'])
+  })
+
+  it('bounds directory staleness for revocation', () => {
+    expect(contracts.AUTHORISATION_MAX_STALENESS_SECONDS).toBeLessThanOrEqual(30)
+    expect(contracts.AUTHORISATION_MEMBERSHIP_STATUSES).toEqual(['active', 'paused', 'suspended', 'ended'])
+    expect(contracts.AUTHORISATION_PRINCIPAL_STATUSES).toEqual(['active', 'paused', 'suspended'])
+  })
+})

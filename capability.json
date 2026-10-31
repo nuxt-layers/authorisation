@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1",
+  "name": "@nuxt4-layers/authorisation",
+  "version": "1.0.0",
+  "classification": "foundation",
+  "provides": [
+    {
+      "capability": "Authorisation",
+      "contractVersion": "4"
+    }
+  ],
+  "requires": [
+    {
+      "capability": "Authentication",
+      "contractVersion": "1",
+      "optional": false,
+      "purpose": "the subject of every decision is an AuthenticatedPrincipal; the host passes it in, so there is no package dependency"
+    },
+    {
+      "capability": "Identity",
+      "contractVersion": "1",
+      "optional": false,
+      "purpose": "groups, lineage, tenants and membership status, adapted by the host to the AuthorisationDirectory port; approval requirements, safety periods, owners and recovery holds through the AuthorisationGovernance port"
+    }
+  ],
+  "publicExports": [
+    ".",
+    "./contracts",
+    "./capability",
+    "./presentation",
+    "./tailwind.css"
+  ],
+  "ports": [
+    {
+      "port": "AuthorisationDatabase",
+      "optional": false
+    },
+    {
+      "port": "AuthorisationDirectory",
+      "optional": false
+    },
+    {
+      "port": "AuthorisationEventSink",
+      "optional": true
+    },
+    {
+      "port": "AuthorisationGovernance",
+      "optional": false
+    },
+    {
+      "port": "AuthorisationSubjectResolver",
+      "optional": false
+    },
+    {
+      "port": "AuthorisationPermissions",
+      "optional": false
+    },
+    {
+      "port": "AuthorisationPolicy",
+      "optional": true
+    },
+    {
+      "port": "AuthorisationClock",
+      "optional": true
+    }
+  ],
+  "integration": {
+    "consumers": "domain capabilities describe their resources and ask for decisions through the public contract; they never read the authorisation schema",
+    "composition": "host supplies ports from a Nitro plugin; persistence follows ADR-0002; groups and memberships belong to Identity"
+  }
+}
