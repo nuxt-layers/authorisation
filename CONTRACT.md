@@ -57,6 +57,8 @@ type AuthorisationSubject = {
   assurance: { level: 'aal1' | 'aal2'; phishingResistant: boolean }
 }
 type AuthorisationGroup = { groupId: string; lineage: readonly string[]; tenantId: string }
+
+`AuthorisationGroup.lineage` is the ordered ancestry **including the group itself as the final entry**. It must not be empty. For a root group with ID `rootId`, use `lineage: [rootId]`; for its child with ID `childId`, use `lineage: [rootId, childId]`. The final lineage entry must equal `groupId`; otherwise decision checks deny with `unknown-group`. Directory adapters must provide this invariant for every resolved group (including membership and personal-group references).
 type AuthorisationActorContext = {
   principalId: string
   kind?: 'person' | 'service' | 'break-glass'
