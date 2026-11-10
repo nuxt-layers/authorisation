@@ -1,8 +1,8 @@
-# @nuxt4-layers/authorisation — notes for Claude
+# @nuxt-layers/authorisation — notes for Claude
 
 ## What this is
-Nuxt 4 foundation layer for authorisation (may this subject perform this permission on this resource, now?).
-Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. British spelling everywhere ("authorisation"), including code and the manifest.
+Nuxt foundation layer for authorisation (may this subject perform this permission on this resource, now?), built on Nuxt 4 (peer `nuxt ^4.5.0`).
+Governed by `nuxt-layers/architecture-rules` (see `RESOURCES.md`); persistence follows ADR-0002. British spelling everywhere ("authorisation"), including code and the manifest.
 
 ## Commands
 - `pnpm install`, then `pnpm dev:prepare` for Nuxt types. Never add a `prepare`/`postinstall` script: Git installs would then pull devDependencies into hosts
@@ -10,13 +10,13 @@ Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. 
 - `pnpm build:playground` proves the layer composes in a host
 - Single test file: `pnpm vitest run tests/<name>.test.ts`
 - Browser tests: `pnpm test:e2e` (builds the playground, then Playwright with axe in light and dark mode, port 3300). Needs `AUTHORISATION_TEST_DATABASE_URL`; locally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` if Playwright's own browser is not installed
-- Theme Manager is pinned as `git+https://github.com/nuxt4-layers/theme-manager.git#<sha>` (listed in `onlyBuiltDependencies`); the lockfile must record the `codeload.github.com` tarball, never `git@github.com`
+- Theme Manager follows `master` as `github:nuxt-layers/theme-manager#master` (ADR-0008), never a tag or commit pin. Refresh the lockfile when its `master` advances; the lockfile must record the `codeload.github.com` tarball, never `git@github.com`
 
 ## Rules
-- Contract (`contracts/`, `shared/`) imports only zod. No Nuxt, Vue, h3, server code, drivers or other `@nuxt4-layers/*` packages. Enforced by `tests/contracts.test.ts`.
+- Contract (`contracts/`, `shared/`) imports only zod. No Nuxt, Vue, h3, server code, drivers or other `@nuxt-layers/*` packages. Enforced by `tests/contracts.test.ts`.
 - Public surface: package root, `./contracts`, `./capability`, `./presentation`, `./tailwind.css`, the `provide*` server functions (`provideAuthorisationClock` among them: optional, the system clock without it; `provideAuthorisationGovernance` and `provideAuthorisationSubjectResolver` required for changes and endpoints) and `migrateAuthorisationDatabase`, `authorise`, `requireAuthorisation`, `authorisationQualifies`, `countAuthorisationQualifying`, `listAuthorisationRoleAssignments`, `assignAuthorisationRole`, `unassignAuthorisationRole`, `defineAuthorisationRole`, `deleteAuthorisationRole`, `createAuthorisationGrant`, `revokeAuthorisationGrant`, `exportAuthorisationData`, `eraseAuthorisationPrincipal`, `getAuthorisationChanges`, `getAuthorisationAdministration`, `listAuthorisationAccessReview`, `listAuthorisationVisibleGroups`, `authorisationDefaultRoles`, `runAuthorisationMaintenance`, `relayAuthorisationOutbox`, `exportAuthorisationRoles`, `importAuthorisationRoles`, `disposeAuthorisationGroup`, `disposeAuthorisationTenant`, `exportAuthorisationTenantData`, `provideAuthorisationLegalHolds`, the `/api/authorisation/*` endpoints, `useAuthorisation()`, the default pages, the `Authorisation*` components and `useAuthorisationText()`, `useAuthorisationAction()`, `useAuthorisationRoutes()`. `server/internal` and `server/database` are private.
 - Storage: append-only migrations in `server/database/migrations.ts` (never edit a released one); parameterised SQL only; rows are validated before they reach a decision. Database suites need `AUTHORISATION_TEST_DATABASE_URL` (admin URL of a local, disposable PostgreSQL 16); they skip locally without it and fail in CI.
-- Authorisation stores no domain data, groups or memberships. Groups, lineage, tenants, memberships (with status) and personal groups come from Identity through the `AuthorisationDirectory` port. Follow platform-architecture's Group Model Definition. Authentication's principal is passed in structurally; never import either package.
+- Authorisation stores no domain data, groups or memberships. Groups, lineage, tenants, memberships (with status) and personal groups come from Identity through the `AuthorisationDirectory` port. Follow architecture-rules' Identity and Access (the group model). Authentication's principal is passed in structurally; never import either package.
 - Groups own information: a role or principal grant counts only while the principal is an active member (docs/contracts.md §5, §6). Creator provenance never grants access. The hierarchy confers no privilege unless an assignment is scoped `group-and-descendants`. Tenant isolation is a separate check. Keep the departure, no-implicit-inheritance and tenant-isolation tests.
 - Service identities (docs/contracts.md §15): roles through memberships like anyone, but never request, decide or qualify to approve a change; refused by the subject's `kind` or the directory's actor `kind` (`strong`). Keep the "service identities" tests in `tests/administration.test.ts`.
 - Deny by default. Unknown permission, principal or group is refused. No superuser or bypass.
@@ -30,6 +30,8 @@ Governed by `nuxt4-layers/platform-architecture`; persistence follows ADR-0002. 
 - Required ports fail closed. No implicit in-memory or file fallback stores.
 - No names, email addresses, resource attributes or other personal data in events or logs.
 - Defaults are secure; loosening policy requires a documented risk treatment.
-- Keep `docs/contracts.md`, `docs/threat-model.md` (control register) and `docs/roadmap.md` in step with code.
+- Keep `CONTRACT.md` (the complete, standalone consumer contract: update it in the same change as any public API change), `docs/contracts.md`, `docs/threat-model.md` (control register), `STORAGE-REGISTER.md` and `PLAN.md` in step with code.
+- Documents follow ADR-0010: external links only in `RESOURCES.md`, at a verified commit; plans and status only in `PLAN.md`; README, CONTRIBUTING and SECURITY hold no versions, pins or outside links.
+- No active code, configuration or current instruction names the former `nuxt4-layers` organisation or scope. Only historical records do: the changelog and `docs/legacy-review.md`.
 - Platform-agnostic: the layer and its tests run alike on Windows, macOS and Linux. Tests that compare file paths with import specifiers or routes pass them through `toPosix` (`tests/support/paths.ts`) first: Node's path functions answer with `\` on Windows.
-- Package manager: pnpm. Commit `pnpm-lock.yaml`.
+- Package manager: pnpm 12 through Corepack (`corepack pnpm …`), at the version `package.json` names; development and CI run Node.js 26.13.0 (ADR-0013). `engines` stays `>=22`: the consumer minimum is not raised to match. Commit `pnpm-lock.yaml`.

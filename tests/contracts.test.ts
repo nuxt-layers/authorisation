@@ -106,7 +106,7 @@ describe('Authorisation public contract', () => {
   })
 
   it('does not leak driver, vendor or other capabilities\' package names', () => {
-    const forbidden = /kysely|drizzle|supabase|^pg$|^@nuxt4-layers\//i
+    const forbidden = /kysely|drizzle|supabase|^pg$|^@nuxt-layers\//i
     for (const file of contractFiles) {
       for (const target of imports(file)) expect(target, file).not.toMatch(forbidden)
     }

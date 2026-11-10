@@ -119,7 +119,7 @@ export interface AuthorisationSelfView {
 // Role documents
 // ---------------------------------------------------------------------------
 
-export const AUTHORISATION_ROLE_DOCUMENT_FORMAT = 'nuxt4-layers.authorisation.roles'
+export const AUTHORISATION_ROLE_DOCUMENT_FORMAT = 'nuxt-layers.authorisation.roles'
 export const AUTHORISATION_ROLE_DOCUMENT_VERSION = 1
 
 /**

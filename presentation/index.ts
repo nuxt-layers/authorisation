@@ -1,6 +1,6 @@
 /**
- * Public presentation surface of `@nuxt4-layers/authorisation`
- * (`@nuxt4-layers/authorisation/presentation`).
+ * Public presentation surface of `@nuxt-layers/authorisation`
+ * (`@nuxt-layers/authorisation/presentation`).
  *
  * The default pages and components depend on the contract and the client
  * API (`useAuthorisation()`) only, and decide nothing: every action is

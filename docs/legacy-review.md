@@ -1,5 +1,7 @@
 # Legacy Layer Review: `nuxt4-layers/legacy-authorisation`
 
+> **In short:** a historical record, made before this layer was built, of what was kept from the earlier authorisation layer and what was left behind. The repository name is the one reviewed, under the former `nuxt4-layers` organisation.
+
 **Reviewed:** 2026-10-08, commit `9087b04` on `master` (16 files, about 1 300 lines, most of it the README).
 **Purpose:** Record what to keep and what to leave behind when building this layer. No legacy source is copied into this repository.
 
