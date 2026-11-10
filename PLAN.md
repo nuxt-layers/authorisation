@@ -12,8 +12,7 @@ Open work, in order. Each item is its own pull request with tests, and keeps `pn
 | Shared composition shapes | ADR-0012 §2 names the shared shapes (`resolveCaller`, `decide`, `tasks`, `relay()`). Authorisation's ports predate them: its subject resolver returns the signed-in principal, not `{ tenantId, subjectId, assurance }`, and maintenance and the relay are two functions, not `tasks`. Reconcile with iam-integration, which returns the shared shapes for the suite, without weakening assurance or tenant isolation | Needs a decision |
 | Port fakes in the package | ADR-0012 §3 asks each capability to ship fakes of its ports, refused outside test configuration. The fakes live in `tests/` and `playground/` today | Not started |
 | Switching the HTTP API off | ADR-0009 and Architecture §4 let a host switch a capability's HTTP API off. Only the presentation part can be switched off today | Not started |
-| Development toolchain | ADR-0013's baseline is in place: CI runs Node.js 26.13.0 and pnpm 12 through Corepack, with TypeScript 6.0.3. The consumer minimum stays Node.js 22 (`engines`); CI no longer tests that version, so decide whether to add it to the matrix or raise the minimum | Needs a decision |
-| Clock capability | The catalogue gives dates, times and temporal arithmetic to `clock`. Authorisation takes the current time through the shared `now()` shape and does its own duration arithmetic and `Intl` formatting. Decide whether to require `clock` | Needs a decision |
+| Calendar deadlines | Periods in days (approval expiry, review intervals, retention) are 24-hour elapsed days, as they always were. Clock's contract recommends calendar days in a stated zone for deadlines people read. Decide with iam-integration whether any of these should become calendar deadlines, and in which zone | Needs a decision |
 | Markdown check | ADR-0004 and ADR-0010 expect a check for headings, local links and external links outside `RESOURCES.md`. None runs here yet | Not started |
 | Contract acceptance | ADR-0012 asks for a consumer test proving `CONTRACT.md` alone is enough to compose the capability | Not started |
 
@@ -34,6 +33,7 @@ Open work, in order. Each item is its own pull request with tests, and keeps `pn
 | 8. Just-in-time elevation and visible scopes | Eligible assignments, activated by their holder through `role.activate` for up to eight hours with the assignment's own approval route (iam-integration improvement register item 7); `listAuthorisationVisibleGroups` and `GET /api/authorisation/visible-groups` for listing pages (contracts §20) | Complete |
 | 9. Release 1.0 | Contract version 4 released as 1.0.0 with `CHANGELOG.md` and the `v1.0.0` tag, which remains a historical record: formal releases are suspended during development (ADR-0008) | Complete |
 | 10. Organisation migration | Identity moved from the version-specific organisation and package scope to `nuxt-layers` and `@nuxt-layers`; Theme Manager followed on `master`; root `CONTRACT.md`, `RESOURCES.md`, `PLAN.md` and `STORAGE-REGISTER.md` | Complete |
+| 11. Toolchain and Clock | ADR-0013's baseline (Node.js 26.13.0, pnpm 12 through Corepack, TypeScript 6.0.3). Every date and time operation moved to the required `Clock` capability; the layer's own date arithmetic, parsing and formatting removed, with a test that fails if any returns. Node.js 26.13 and Nuxt 4.6 are now the minimums for hosts | Complete |
 
 ## Dependencies on other capabilities
 

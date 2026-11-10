@@ -18,6 +18,7 @@ import type {
   BuiltInRoleId,
 } from '../../contracts'
 import { BUILT_IN_ROLE_IDS, permissionPatternMatches } from '../../contracts'
+import { after, secondsBetween } from './time'
 
 /**
  * The decision engine: a pure function from facts to a decision. It performs
@@ -159,15 +160,15 @@ function findSource(
     if (standing && (!best || STANDING_RANK[standing] > STANDING_RANK[best.standing])) best = { via, standing }
   }
 
-  const now = facts.now.getTime()
+  const now = facts.now
 
   // Roles held in the owning group, or in an ancestor when explicitly scoped to descendants.
   for (const a of facts.assignments) {
     if (a.principalId !== subject.principalId) continue
     // A time-limited assignment past its end confers nothing, whether or not maintenance has removed it.
-    if (a.expiresAt != null && !(Date.parse(a.expiresAt) > now)) continue
+    if (a.expiresAt != null && !after(a.expiresAt, now)) continue
     // An eligible assignment confers only while activated, whether or not maintenance has caught up.
-    if (a.eligible && !(a.activeUntil != null && Date.parse(a.activeUntil) > now)) continue
+    if (a.eligible && !(a.activeUntil != null && after(a.activeUntil, now))) continue
     if (a.groupId !== group.groupId && !(a.scope === 'group-and-descendants' && group.lineage.includes(a.groupId))) continue
     const standing = inResourceTenant(a.groupId)
     if (standing && covers(findRole(a.roleId, group.tenantId, facts))) consider('role', standing)
@@ -184,7 +185,7 @@ function findSource(
     // A grant bound to an owning group counts only while that group owns the resource, as its capability describes it now.
     if (grant.resource.owningGroupId && grant.resource.owningGroupId !== resource.owningGroupId) continue
     if (!grant.permissions.includes(definition.name)) continue
-    if (grant.expiresAt !== null && !(Date.parse(grant.expiresAt) > now)) continue
+    if (grant.expiresAt !== null && !after(grant.expiresAt, now)) continue
     if (grant.subject.kind === 'group') {
       const groupId = grant.subject.groupId
       consider('grant', policy.externalGrants ? standingIn.get(groupId)?.standing ?? null : inResourceTenant(groupId))
@@ -246,10 +247,8 @@ function meetsRequirement(subject: AuthorisationSubject, requirement: Authorisat
   if (!level || level < LEVEL_RANK[requirement.minimumLevel]) return false
   if (requirement.phishingResistant && subject.assurance.phishingResistant !== true) return false
   if (requirement.maxAuthenticationAgeSeconds !== null) {
-    const authenticatedAt = Date.parse(subject.authenticatedAt)
-    if (Number.isNaN(authenticatedAt)) return false
-    const age = (now.getTime() - authenticatedAt) / 1000
-    if (age > requirement.maxAuthenticationAgeSeconds) return false
+    const age = secondsBetween(subject.authenticatedAt, now)
+    if (age === null || age > requirement.maxAuthenticationAgeSeconds) return false
   }
   return true
 }

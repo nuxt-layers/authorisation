@@ -23,7 +23,7 @@ import {
   roleDefinitionSchema,
   UUID_PATTERN,
 } from '../../contracts'
-import { timeFrom } from './clock'
+import { systemAuthorisationClock, timeFrom } from './clock'
 import type { Database, Queryable } from './database'
 import { decideAuthorisation } from './decide'
 import { digestOf } from './digest'
@@ -31,6 +31,7 @@ import type { EventInput } from './outbox'
 import { enqueue } from './outbox'
 import type { StoredGrant } from './store'
 import { createStore } from './store'
+import { after, instant, instantOrNull } from './time'
 
 /**
  * PRIVATE. Authorisation's server operations: gathering the facts for a
@@ -143,7 +144,7 @@ export function createWriter(client: Queryable, schemaName: string, quotedSchema
   }
 }
 
-export function createService({ db, schemaName, directory, catalogue, policy, emitDenial, now: clockNow = () => new Date() }: ServiceDependencies) {
+export function createService({ db, schemaName, directory, catalogue, policy, emitDenial, now: clockNow = systemAuthorisationClock.now }: ServiceDependencies) {
   /** The clock's time; an invalid answer fails closed as `unavailable`, so no decision is made on another time. */
   const clock = { now: clockNow }
   const now = (): Date => timeFrom(clock)
@@ -188,7 +189,7 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
 
   /** A subject that meets every assurance requirement: qualification ignores the session, which the approver brings later. */
   const fullAssurance = (principalId: string): AuthorisationSubject =>
-    ({ principalId, authenticatedAt: now().toISOString(), assurance: { level: 'aal2', phishingResistant: true } })
+    ({ principalId, authenticatedAt: instant(now()), assurance: { level: 'aal2', phishingResistant: true } })
 
   async function qualifies(principalId: string, permission: string, resource: AuthorisationResource): Promise<boolean> {
     // A service identity never approves (iam-integration's service identities process), so it never counts as an approver.
@@ -229,12 +230,12 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
       throw new AuthorisationFailure('validation-failed', 'unknown-permission')
     }
     requireIdentifier(grant.subject?.kind === 'group' ? grant.subject.groupId : grant.subject?.principalId, 'holder')
-    if (grant.expiresAt !== null && !(Date.parse(grant.expiresAt) > at.getTime())) throw new AuthorisationFailure('validation-failed', 'expiry-in-the-past')
+    if (grant.expiresAt !== null && !after(grant.expiresAt, at)) throw new AuthorisationFailure('validation-failed', 'expiry-in-the-past')
     return {
       resource: { type: grant.resource.type, id: grant.resource.id, owningGroupId: grant.resource.owningGroupId ?? null },
       subject: grant.subject.kind === 'group' ? { kind: 'group', groupId: grant.subject.groupId } : { kind: 'principal', principalId: grant.subject.principalId },
       permissions: [...new Set(grant.permissions)].sort(),
-      expiresAt: grant.expiresAt === null ? null : new Date(grant.expiresAt).toISOString(),
+      expiresAt: grant.expiresAt === null ? null : instant(grant.expiresAt),
     }
   }
 
@@ -251,7 +252,7 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
       if (!decision.allowed) {
         await emitDenial({
           type: 'authorisation.denied',
-          occurredAt: now().toISOString(),
+          occurredAt: instant(now()),
           actorPrincipalId: input.subject.principalId,
           groupId: input.resource.owningGroupId,
           resource: { type: input.resource.type, id: input.resource.id },
@@ -324,15 +325,15 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
       const scope = input.scope ?? 'group'
       if (!(ROLE_ASSIGNMENT_SCOPES as readonly string[]).includes(scope)) throw new AuthorisationFailure('validation-failed', 'invalid-scope')
       const at = now()
-      const expiresAt = input.expiresAt == null ? null : new Date(input.expiresAt)
-      if (expiresAt !== null && !(expiresAt.getTime() > at.getTime())) throw new AuthorisationFailure('validation-failed', 'expiry-in-the-past')
+      const expiresAt = input.expiresAt == null ? null : instantOrNull(input.expiresAt)
+      if (input.expiresAt != null && !after(expiresAt, at)) throw new AuthorisationFailure('validation-failed', 'expiry-in-the-past')
       const group = await knownGroup(requireIdentifier(input.groupId, 'group'))
       if (!isBuiltInRole(input.roleId)) {
         const roles = await io('store', () => store.customRoles([group.tenantId]))
         if (!roles.get(group.tenantId)?.has(input.roleId)) throw new AuthorisationFailure('validation-failed', 'unknown-role')
       }
       return write({ actorPrincipalId: actor, correlationId, at }, writer =>
-        writer.assign({ principalId, groupId: group.groupId, roleId: input.roleId, scope, expiresAt: expiresAt?.toISOString() ?? null }))
+        writer.assign({ principalId, groupId: group.groupId, roleId: input.roleId, scope, expiresAt }))
     },
 
     /** Takes a role (or, with `roleId` null, every role) from a principal in a group. Returns the roles removed. */
@@ -387,7 +388,7 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
     async exportPrincipal(input: { principalId: string, correlationId: string }): Promise<AuthorisationDataExport> {
       const principalId = requireIdentifier(input.principalId, 'principal')
       const correlationId = requireIdentifier(input.correlationId, 'correlation')
-      const exportedAt = now().toISOString()
+      const exportedAt = instant(now())
       const [assignments, grants, changes] = await Promise.all([
         io('store', () => store.assignmentsOf(principalId)),
         io('store', () => store.grantsHeldBy(principalId)),
@@ -423,7 +424,7 @@ export function createService({ db, schemaName, directory, catalogue, policy, em
       return write({ actorPrincipalId: actor, correlationId, at }, async (writer) => {
         const removed = await writer.store.erasePrincipal(principalId)
         for (const change of await writer.store.openChangesInvolving(principalId)) {
-          await writer.store.updateChange(change.changeId, { state: 'rejected', decidedAt: at.toISOString(), failure: 'principal-erased' })
+          await writer.store.updateChange(change.changeId, { state: 'rejected', decidedAt: instant(at), failure: 'principal-erased' })
           await writer.emit({ type: 'authorisation.change-decided', data: { changeId: change.changeId, changeType: change.type, tenantId: change.tenantId, groupId: change.groupId, requesterId: change.requesterId, beneficiaryId: change.beneficiaryId, risk: change.risk, route: change.route, state: 'rejected' } })
         }
         if (removed.assignments + removed.grants > 0) await writer.emit({ type: 'authorisation.principal-erased', data: { principalId, ...removed } })

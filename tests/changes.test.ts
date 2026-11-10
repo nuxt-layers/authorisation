@@ -85,9 +85,8 @@ describe('approval rules', () => {
 
   it('refuses the requester, the beneficiary, someone the requester controls, a stale digest and a weak session', () => {
     const change = { requesterId: 'req', beneficiaryId: 'ben', changeDigest: 'a'.repeat(64), state: 'awaiting-approval' as const, approvals: [], risk: 'critical' as const }
-    const now = new Date('2030-01-01T00:10:00.000Z')
     const assurance = { level: 'aal2' as const, phishingResistant: true, authenticatedAt: '2030-01-01T00:00:00.000Z' }
-    const base = { change, approverId: 'app', qualifies: true, controls: ['svc'], assurance, changeDigest: 'a'.repeat(64), now }
+    const base = { change, approverId: 'app', qualifies: true, controls: ['svc'], assurance, changeDigest: 'a'.repeat(64), authenticationAgeSeconds: 600 }
     expect(refuseApproval(base)).toBeNull()
     expect(refuseApproval({ ...base, approverId: 'req' })).toBe('own-request')
     expect(refuseApproval({ ...base, approverId: 'ben' })).toBe('beneficiary')
@@ -95,7 +94,10 @@ describe('approval rules', () => {
     expect(refuseApproval({ ...base, qualifies: false })).toBe('not-qualified')
     expect(refuseApproval({ ...base, changeDigest: 'b'.repeat(64) })).toBe('change-differs')
     expect(refuseApproval({ ...base, assurance: { ...assurance, phishingResistant: false } })).toBe('insufficient-assurance')
-    expect(refuseApproval({ ...base, now: new Date('2030-01-01T00:20:00.000Z') })).toBe('insufficient-assurance')
+    expect(refuseApproval({ ...base, authenticationAgeSeconds: 1200 })).toBe('insufficient-assurance')
+    // A sign-in dated after the server's clock, or one whose time cannot be read, never counts as recent.
+    expect(refuseApproval({ ...base, authenticationAgeSeconds: -1 })).toBe('insufficient-assurance')
+    expect(refuseApproval({ ...base, authenticationAgeSeconds: null })).toBe('insufficient-assurance')
     expect(refuseApproval({ ...base, change: { ...change, state: 'applied' } })).toBe('not-pending')
   })
 })

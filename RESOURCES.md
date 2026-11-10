@@ -29,6 +29,12 @@ Reviewed at `nuxt-layers/architecture-rules` commit `3436b1cc2a33401a7c3f08d5bc9
 | ADR-0012 | Trivial composition, shared shapes and the consumer contract | [ADR-0012](https://github.com/nuxt-layers/architecture-rules/blob/3436b1cc2a33401a7c3f08d5bc9ee9fe11ea93d2/docs/decisions/ADR-0012-trivial-composition.md) |
 | ADR-0013 | The development toolchain baseline | [ADR-0013](https://github.com/nuxt-layers/architecture-rules/blob/3436b1cc2a33401a7c3f08d5bc9ee9fe11ea93d2/docs/decisions/ADR-0013-development-toolchain-baseline.md) |
 
+## Required capabilities
+
+| Entry | Governs | Verified reference |
+|---|---|---|
+| Clock: consumer contract | The date and time operations Authorisation uses, their canonical values and errors | [Clock contract](https://github.com/nuxt-layers/clock/blob/96e71c08634334527e281bf62ceca18a7b256a36/CONTRACT.md) |
+
 ## IAM suite processes
 
 Documents of `nuxt-layers/iam-integration`, each at the revision reviewed when the part of the contract that follows it was written.

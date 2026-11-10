@@ -4,6 +4,13 @@
 
 ## 2026-11-10
 
+- **Clock does all date and time work.** Authorisation requires the `Clock` capability (`@nuxt-layers/clock`, a package dependency following `master`) and no longer parses, compares, adds to or formats times itself; `tests/time.test.ts` fails if that returns. The host's `now()` clock port is unchanged.
+- **Breaking for hosts:** add `@nuxt-layers/clock` to the host's dependencies and `extends`. The minimums are now Node.js 26.13 (`engines`) and Nuxt 4.6 (peer), and the screens need a browser with native `Temporal`.
+- **Breaking:** instants are answered, stored in JSON and published in Clock's canonical form, which leaves a zero fraction out (`2030-01-08T00:00:00Z`, not `…00.000Z`). Compare instants, do not match them as text. Changes already recorded keep their digests.
+- **Breaking:** an instant passed to a server function must be RFC 3339 with seconds; looser date strings are `validation-failed`.
+- **Breaking for contract importers:** `meetsStepUp` and `refuseApproval` take the session's age in seconds (`authenticationAgeSeconds`) in place of `now`, so the contract does no time arithmetic.
+- The screens show dates and times in the zone the host gives Clock (`runtimeConfig.public.clock.timeZone`, `UTC` by default) and name it, the same on the server and in the browser; before, each used its own local zone. An end date is read as the start of that day in that zone.
+
 - **Breaking for hosts:** the package is `@nuxt-layers/authorisation`, in the `nuxt-layers` organisation; it was `@nuxt4-layers/authorisation`. Hosts change their dependency to the Git-backed `master` of the new repository, and their `extends`, `/contracts`, `/presentation` and `/tailwind.css` imports to the new scope. No function, type, endpoint, event, setting, permission, message key or database object is renamed; the role document format identifier is (below).
 - **Breaking for operators:** the role document format identifier (`AUTHORISATION_ROLE_DOCUMENT_FORMAT`) is `nuxt-layers.authorisation.roles`. The digest covers it, so a role document exported before this change is refused on import; export it again from the tenant. Nothing stored in the database changes.
 - Theme Manager, a development dependency, is `@nuxt-layers/theme-manager` and follows its `master`; the lockfile records the resolved commit.
