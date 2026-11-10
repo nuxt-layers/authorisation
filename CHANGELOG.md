@@ -4,6 +4,7 @@
 
 ## 2026-11-10
 
+- Dependency review has no advisory exceptions left: `simple-git` is no longer installed, so its three accepted advisories and the `@simple-git/argv-parser` override are removed, and the `braces` advisory is no longer reported against the installed version.
 - `node-forge` is 1.4.3, which fixes the advisory accepted for 1.4.0; its exception is removed from dependency review and the threat model. Dependabot no longer proposes TypeScript 7 or `h3` 2, which the current Nuxt cannot use.
 - **Clock does all date and time work.** Authorisation requires the `Clock` capability (`@nuxt-layers/clock`, a package dependency following `master`) and no longer parses, compares, adds to or formats times itself; `tests/time.test.ts` fails if that returns. The host's `now()` clock port is unchanged.
 - **Breaking for hosts:** add `@nuxt-layers/clock` to the host's dependencies and `extends`. The minimums are now Node.js 26.13 (`engines`) and Nuxt 4.6 (peer), and the screens need a browser with native `Temporal`.
