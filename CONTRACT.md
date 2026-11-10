@@ -10,12 +10,14 @@
 "@nuxt-layers/authorisation": "github:nuxt-layers/authorisation#master"
 ```
 
-A Git-backed dependency following the latest accepted `master`; the host's lockfile records the resolved commit and is refreshed when `master` advances. The package runs no install scripts and installs one runtime dependency, `zod`. It needs Nuxt 4.5 or later (peer dependency `nuxt ^4.5.0`), Node.js 22 or later, and a PostgreSQL database (tested on PostgreSQL 16) reached through a `pg`-compatible pool the host creates.
+A Git-backed dependency following the latest accepted `master`; the host's lockfile records the resolved commit and is refreshed when `master` advances. The package runs no install scripts and installs two runtime dependencies: `zod`, and `@nuxt-layers/clock`, which does all of its date and time work. It needs Nuxt 4.6 or later (peer dependency `nuxt ^4.6.0`), Node.js 26.13 or later (Clock uses the runtime's native `Temporal`), and a PostgreSQL database (tested on PostgreSQL 16) reached through a `pg`-compatible pool the host creates. The screens need a browser with native `Temporal`: current Chromium, Firefox and WebKit.
+
+The host composes Clock as a peer layer beside Authorisation, so it also declares `"@nuxt-layers/clock": "github:nuxt-layers/clock#master"` itself. Clock ships TypeScript source, which the host's build compiles only for layers it extends; without Clock in `extends` the server build fails.
 
 ```ts
 // nuxt.config.ts
 export default defineNuxtConfig({
-  extends: ['@nuxt-layers/authorisation'],
+  extends: ['@nuxt-layers/clock', '@nuxt-layers/authorisation'],
 })
 ```
 
@@ -49,6 +51,7 @@ Nothing else is public: never import `server/internal`, `server/database` or any
 |---|---|---|
 | `runtimeConfig.authorisation.baseUrl` (`NUXT_AUTHORISATION_BASE_URL`) | `''` | The host's public origin. A state-changing `/api/authorisation/*` request must carry an `Origin` (or, failing that, a `Referer`) matching it. Unset, every such request is refused |
 | `runtimeConfig.public.authorisation.locale` (`NUXT_PUBLIC_AUTHORISATION_LOCALE`) | `en-GB` | BCP 47 locale of the screens' text, dates and times |
+| `runtimeConfig.public.clock.timeZone`, `.hourCycle` | `UTC`, `h23` | Clock's own settings, set once by the host for every layer. The screens show dates and times in this IANA zone, naming it, and read a date field as the start of that day in it. The screens' language still follows the locale above |
 | `runtimeConfig.public.authorisation.routes.signIn` | `/sign-in` | Where the screens send someone who is not signed in |
 | `authorisation.presentation` (`nuxt.config.ts`) | `true` | `false` registers no page, component, presentation auto-import or route rule; the core works unchanged |
 | `authorisation.pages.enabled` | `true` | `false` keeps the components and registers no page |
@@ -162,6 +165,8 @@ The layer creates and owns one PostgreSQL schema (`authorisation` by default) ho
 ## Client and server functions
 
 Every server function fails closed. It throws `AuthorisationFailure` (`code`, and `reason` for `conflict` and `validation-failed`): `unavailable` when the directory, governance port, database or clock fails; `validation-failed` for invalid input.
+
+**Times.** Every instant the layer returns, stores or publishes is in Clock's canonical form: ISO 8601 in UTC ending `Z`, to the millisecond, with a zero fraction left out (`2030-01-08T00:00:00Z`, `2030-01-08T00:00:00.250Z`). An instant passed in is RFC 3339 with seconds, and `Z` or a numeric offset; anything else is `validation-failed`, and an unreadable time never counts as still valid or recent. Periods given in days (retention, review intervals, approval expiry) are 24-hour elapsed days, not calendar days in a zone.
 
 ### Decisions
 
@@ -367,6 +372,8 @@ A host that draws its own screens must still:
 
 ## You will hit this
 
+- **Clock in `extends`.** Leave `@nuxt-layers/clock` out of the host's `extends` and the server build stops on Clock's TypeScript source.
+- **Instants are compared, never matched as text.** `2030-01-08T00:00:00.000Z` is answered as `2030-01-08T00:00:00Z`; compare instants with Clock, not as strings.
 - **Identifiers.** Principals, groups, tenants, roles and resources match `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`: no `@`, no spaces. Changes, grants, events and correlations are lower-case UUIDs. A reason code matches `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`; a reference matches `^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,63}$`.
 - **Deny by default.** An unknown permission, principal or group is refused. There is no superuser.
 - **No implicit inheritance.** A role reaches child groups only when its assignment is scoped `group-and-descendants`, which is always `critical`.

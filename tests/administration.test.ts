@@ -42,6 +42,7 @@ import {
   unassignAuthorisationRole,
 } from '../server/utils/authorisation-server'
 import { createTestDatabase, hasDatabase, requireDatabaseInCi } from './support/database'
+import { instantOf } from './support/instants'
 
 requireDatabaseInCi()
 
@@ -54,7 +55,7 @@ const PERMISSIONS: AuthorisationPermissionDefinition[] = [
 ]
 
 const CORRELATION = '01a00000-0000-7000-8000-0000000000c1'
-const START = Date.parse('2030-01-01T00:00:00.000Z')
+const START = Date.parse('2030-01-01T00:00:00Z')
 const DEFAULT_REQUIRED: AuthorisationRequiredApprovers = { low: 0, medium: 0, high: 1, critical: 1 }
 const PERIODS = { publishedDelayHighHours: 72, publishedDelayCriticalHours: 168, approvalExpiryDays: 7, recoveryHoldHours: 72 }
 
@@ -225,7 +226,7 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
       await expect(request(weak('adam'), 'role.assign', { principalId: 'mia', groupId: 'sales', roleId: 'administrator' })).rejects.toMatchObject({ code: 'insufficient-assurance' })
       const change = await request(subject('adam', { phishingResistant: false }), 'role.assign', { principalId: 'mia', groupId: 'sales', roleId: 'administrator' })
       expect(change).toMatchObject({ risk: 'high', route: 'approvers', requiredApprovals: 1, state: 'awaiting-approval' })
-      expect(change.expiresAt).toBe(new Date(at.getTime() + 7 * 86_400_000).toISOString())
+      expect(change.expiresAt).toBe(instantOf(new Date(at.getTime() + 7 * 86_400_000)))
       expect(await may('mia', 'authorisation.grants:manage', 'sales')).toBe(false)
       await expect(approve(subject('adam'), change.changeId)).rejects.toMatchObject({ code: 'conflict', reason: 'own-request' })
       await expect(approve(subject('mia'), change.changeId)).rejects.toMatchObject({ code: 'conflict', reason: 'beneficiary' })
@@ -298,7 +299,7 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
   describe('approval routes', () => {
     it('takes a critical change by a sole owner without a parent only after the published delay, and lets it be cancelled meanwhile', async () => {
       const first = await request(subject('sole'), 'role.assign', { principalId: 'mo', groupId: 'solo', roleId: 'viewer', scope: 'group-and-descendants' })
-      expect(first).toMatchObject({ route: 'published-delay', state: 'delayed', expiresAt: null, delayEndsAt: new Date(at.getTime() + 168 * 3_600_000).toISOString() })
+      expect(first).toMatchObject({ route: 'published-delay', state: 'delayed', expiresAt: null, delayEndsAt: instantOf(new Date(at.getTime() + 168 * 3_600_000)) })
       await expect(changes().cancel({ subject: subject('mo'), changeId: first.changeId, correlationId: CORRELATION })).rejects.toMatchObject({ code: 'forbidden' })
       expect(await changes().cancel({ subject: subject('sole'), changeId: first.changeId, correlationId: CORRELATION })).toMatchObject({ state: 'cancelled' })
 
@@ -372,7 +373,7 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
     })
 
     it('holds a change requested within the requester\'s recovery hold until the hold ends', async () => {
-      holds.set('adam', new Date(at.getTime() + 24 * 3_600_000).toISOString())
+      holds.set('adam', instantOf(new Date(at.getTime() + 24 * 3_600_000)))
       const change = await request(subject('adam'), 'role.assign', { principalId: 'gus', groupId: 'sales', roleId: 'viewer' })
       expect(change).toMatchObject({ route: 'none', state: 'delayed', heldUntil: holds.get('adam'), delayEndsAt: holds.get('adam') })
       expect((await relayed()).map(e => e.type)).toContain('authorisation.change-held')
@@ -465,14 +466,14 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
       expect(await approve(subject('amy', { phishingResistant: false }), activation.changeId)).toMatchObject({ state: 'applied' })
       expect(await may('jo', 'authorisation.grants:manage', 'sales')).toBe(true)
       const activated = (await relayed()).find(e => e.type === 'authorisation.role-activated')
-      expect(activated).toMatchObject({ actorPrincipalId: 'jo', data: { principalId: 'jo', groupId: 'sales', roleId: 'administrator', activeUntil: new Date(at.getTime() + 3_600_000).toISOString(), changeId: activation.changeId } })
+      expect(activated).toMatchObject({ actorPrincipalId: 'jo', data: { principalId: 'jo', groupId: 'sales', roleId: 'administrator', activeUntil: instantOf(new Date(at.getTime() + 3_600_000)), changeId: activation.changeId } })
       hoursLater(1)
       expect(await may('jo', 'authorisation.grants:manage', 'sales')).toBe(false)
     })
 
     it('activates a medium-risk eligible role at once, never beyond the assignment\'s own end', async () => {
       member('jen', 'sales')
-      const end = new Date(at.getTime() + 30 * 60_000).toISOString()
+      const end = instantOf(new Date(at.getTime() + 30 * 60_000))
       expect(await request(weak('adam'), 'role.assign', { principalId: 'jen', groupId: 'sales', roleId: 'member', eligible: true, expiresAt: end })).toMatchObject({ state: 'applied' })
       expect(await may('jen', 'orders:create', 'sales')).toBe(false)
       await relayed()
@@ -506,7 +507,7 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
       // Administrators cannot change a group's access; owners can.
       await expect(request(subject('adam'), 'group.change-default-roles', { groupId: 'sales', defaultRoles: { member: 'viewer', guest: null } })).rejects.toMatchObject({ code: 'forbidden' })
       const change = await request(subject('sam'), 'group.change-default-roles', { groupId: 'sales', defaultRoles: { member: 'administrator', guest: null } })
-      expect(change).toMatchObject({ risk: 'high', route: 'parent-owner', state: 'awaiting-approval', heldUntil: new Date(at.getTime() + 72 * 3_600_000).toISOString() })
+      expect(change).toMatchObject({ risk: 'high', route: 'parent-owner', state: 'awaiting-approval', heldUntil: instantOf(new Date(at.getTime() + 72 * 3_600_000)) })
       expect(await approve(subject('olive'), change.changeId)).toMatchObject({ state: 'delayed' })
       expect(await authorisationDefaultRoles('sales')).toEqual({ member: 'member', guest: 'viewer' })
       hoursLater(72)

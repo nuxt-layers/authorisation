@@ -218,12 +218,18 @@ export const STEP_UP_REQUIREMENTS: Readonly<Record<AuthorisationRiskLevel, Autho
   critical: { minimumLevel: 'aal2', phishingResistant: true, maxAuthenticationAgeSeconds: 900 },
 })
 
-export function meetsStepUp(assurance: AuthorisationAssuranceRecord, requirement: AuthorisationAssuranceRequirement, now: Date): boolean {
+/**
+ * Whether a session meets a step-up requirement. `authenticationAgeSeconds`
+ * is the time since the session's `authenticatedAt`, measured by the caller
+ * on the server's clock; the contract does no time arithmetic of its own. A
+ * missing, negative or too great age fails a requirement that sets a limit.
+ */
+export function meetsStepUp(assurance: AuthorisationAssuranceRecord, requirement: AuthorisationAssuranceRequirement, authenticationAgeSeconds: number | null): boolean {
   if (requirement.minimumLevel === 'aal2' && assurance.level !== 'aal2') return false
   if (requirement.phishingResistant && !assurance.phishingResistant) return false
   if (requirement.maxAuthenticationAgeSeconds !== null) {
-    const age = (now.getTime() - Date.parse(assurance.authenticatedAt)) / 1000
-    if (!(age >= 0 && age <= requirement.maxAuthenticationAgeSeconds)) return false
+    const age = authenticationAgeSeconds
+    if (age === null || !(age >= 0 && age <= requirement.maxAuthenticationAgeSeconds)) return false
   }
   return true
 }
@@ -363,7 +369,8 @@ export function refuseApproval(input: {
   controls: readonly string[]
   assurance: AuthorisationAssuranceRecord
   changeDigest: string
-  now: Date
+  /** Seconds since the approver's session was authenticated, on the server's clock; null when unreadable. */
+  authenticationAgeSeconds: number | null
 }): AuthorisationApprovalRefusal | null {
   const { change } = input
   if (change.state !== 'awaiting-approval') return 'not-pending'
@@ -373,6 +380,6 @@ export function refuseApproval(input: {
   if (change.approvals.some(approval => approval.approverId === input.approverId)) return 'already-decided'
   if (!input.qualifies) return 'not-qualified'
   if (input.changeDigest !== change.changeDigest) return 'change-differs'
-  if (!meetsStepUp(input.assurance, STEP_UP_REQUIREMENTS[change.risk], input.now)) return 'insufficient-assurance'
+  if (!meetsStepUp(input.assurance, STEP_UP_REQUIREMENTS[change.risk], input.authenticationAgeSeconds)) return 'insufficient-assurance'
   return null
 }

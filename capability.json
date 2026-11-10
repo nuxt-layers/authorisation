@@ -21,6 +21,12 @@
       "contractVersion": "1",
       "optional": false,
       "purpose": "groups, lineage, tenants and membership status, adapted by the host to the AuthorisationDirectory port; approval requirements, safety periods, owners and recovery holds through the AuthorisationGovernance port"
+    },
+    {
+      "capability": "Clock",
+      "contractVersion": "1",
+      "optional": false,
+      "purpose": "parsing, comparing, adding to and formatting dates and times; a package dependency on @nuxt-layers/clock, imported from its /core entry"
     }
   ],
   "publicExports": [

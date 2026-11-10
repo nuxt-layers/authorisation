@@ -12,6 +12,8 @@ import type {
 import { DEFAULT_GROUP_DEFAULT_ROLES, pendingChangeSchema, roleDefinitionSchema } from '../../contracts'
 import { quoteSchema } from '../database/migrations'
 import type { Queryable } from './database'
+import type { When } from './time'
+import { instant } from './time'
 
 /**
  * PRIVATE. Roles, role assignments, grants, group access settings and
@@ -39,7 +41,8 @@ export interface StoredChange extends AuthorisationPendingChange {
   failure: string | null
 }
 
-const iso = (value: Date | string | null | undefined): string | null => (value ? new Date(value).toISOString() : null)
+/** A time as the driver or a JSON column gives it, as a canonical instant. */
+const iso = (value: Date | string | null | undefined): string | null => (value ? instant(value) : null)
 
 interface AssignmentRow {
   principal_id: string
@@ -198,10 +201,10 @@ export function createStore(db: Queryable, schema: string) {
     },
 
     /** Activates an eligible assignment until `activeUntil`. False when it is not (or no longer) eligible. */
-    async activate(key: { principalId: string, groupId: string, roleId: string }, activeUntil: Date): Promise<boolean> {
+    async activate(key: { principalId: string, groupId: string, roleId: string }, activeUntil: When): Promise<boolean> {
       const { rows } = await query(
         `update ${s}."role_assignment" set active_until = $4 where principal_id = $1 and group_id = $2 and role_id = $3 and eligible returning 1`,
-        [key.principalId, key.groupId, key.roleId, activeUntil.toISOString()],
+        [key.principalId, key.groupId, key.roleId, instant(activeUntil)],
       )
       return rows.length > 0
     },
@@ -226,7 +229,7 @@ export function createStore(db: Queryable, schema: string) {
          where ${s}."role_assignment".scope <> excluded.scope or ${s}."role_assignment".expires_at is distinct from excluded.expires_at
            or ${s}."role_assignment".eligible <> excluded.eligible
          returning true as changed`,
-        [assignment.principalId, assignment.groupId, assignment.roleId, assignment.scope, assignedBy, at.toISOString(), assignment.expiresAt, assignment.eligible === true],
+        [assignment.principalId, assignment.groupId, assignment.roleId, assignment.scope, assignedBy, instant(at), assignment.expiresAt, assignment.eligible === true],
       )
       return rows.length > 0
     },
@@ -246,7 +249,7 @@ export function createStore(db: Queryable, schema: string) {
         `delete from ${s}."role_assignment" where ctid in (
            select ctid from ${s}."role_assignment" where expires_at is not null and expires_at <= $1 order by expires_at limit $2 for update skip locked)
          returning ${ASSIGNMENT_COLUMNS}`,
-        [at.toISOString(), limit],
+        [instant(at), limit],
       )
       return rows.map(toAssignment)
     },
@@ -256,7 +259,7 @@ export function createStore(db: Queryable, schema: string) {
       const { rows } = await query(
         `update ${s}."role_assignment" set confirmed_at = $4, confirmed_by = $5, overdue_announced_at = null
          where principal_id = $1 and group_id = $2 and role_id = $3 returning 1`,
-        [key.principalId, key.groupId, key.roleId, at.toISOString(), by],
+        [key.principalId, key.groupId, key.roleId, instant(at), by],
       )
       return rows.length > 0
     },
@@ -272,13 +275,13 @@ export function createStore(db: Queryable, schema: string) {
            and coalesce(a.confirmed_at, a.created_at) + make_interval(days => g.review_interval_days) <= $1
            and (a.expires_at is null or a.expires_at > $1)
          order by review_due_at limit $2 for update of a skip locked`,
-        [at.toISOString(), limit],
+        [instant(at), limit],
       )
       return rows.map(row => ({ ...toAssignmentView(row), lastConfirmedAt: iso(row.last_confirmed_at)!, reviewDueAt: iso(row.review_due_at)! }))
     },
 
     async markOverdueAnnounced(key: { principalId: string, groupId: string, roleId: string }, at: Date): Promise<void> {
-      await query(`update ${s}."role_assignment" set overdue_announced_at = $4 where principal_id = $1 and group_id = $2 and role_id = $3`, [key.principalId, key.groupId, key.roleId, at.toISOString()])
+      await query(`update ${s}."role_assignment" set overdue_announced_at = $4 where principal_id = $1 and group_id = $2 and role_id = $3`, [key.principalId, key.groupId, key.roleId, instant(at)])
     },
 
     // -----------------------------------------------------------------------
@@ -311,7 +314,7 @@ export function createStore(db: Queryable, schema: string) {
          on conflict (tenant_id, role_id) do update set definition = excluded.definition, updated_at = excluded.updated_at
          where ${s}."custom_role".definition is distinct from excluded.definition
          returning (xmax = 0) as inserted`,
-        [tenantId, role.id, JSON.stringify(role), at.toISOString()],
+        [tenantId, role.id, JSON.stringify(role), instant(at)],
       )
       if (rows.length === 0) return null
       return rows[0]!.inserted ? 'defined' : 'changed'
@@ -365,7 +368,7 @@ export function createStore(db: Queryable, schema: string) {
       const grantId = randomUUID()
       await query(
         `insert into ${s}."grant" (grant_id, resource_type, resource_id, owning_group_id, subject_kind, subject_id, permissions, expires_at, granted_by, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [grantId, grant.resource.type, grant.resource.id, grant.resource.owningGroupId ?? null, grant.subject.kind, grant.subject.kind === 'group' ? grant.subject.groupId : grant.subject.principalId, [...grant.permissions], grant.expiresAt, grantedBy, at.toISOString()],
+        [grantId, grant.resource.type, grant.resource.id, grant.resource.owningGroupId ?? null, grant.subject.kind, grant.subject.kind === 'group' ? grant.subject.groupId : grant.subject.principalId, [...grant.permissions], grant.expiresAt, grantedBy, instant(at)],
       )
       return grantId
     },
@@ -406,7 +409,7 @@ export function createStore(db: Queryable, schema: string) {
          on conflict (group_id) do update set default_member_role = excluded.default_member_role, default_guest_role = excluded.default_guest_role,
            default_member_role_set = true, default_guest_role_set = true, updated_at = excluded.updated_at, updated_by = excluded.updated_by,
            version = ${s}."group_access".version + 1`,
-        [groupId, tenantId, roles.member, roles.guest, at.toISOString(), by],
+        [groupId, tenantId, roles.member, roles.guest, instant(at), by],
       )
     },
 
@@ -415,7 +418,7 @@ export function createStore(db: Queryable, schema: string) {
         `insert into ${s}."group_access" (group_id, tenant_id, review_interval_days, updated_at, updated_by) values ($1, $2, $3, $4, $5)
          on conflict (group_id) do update set review_interval_days = excluded.review_interval_days, updated_at = excluded.updated_at,
            updated_by = excluded.updated_by, version = ${s}."group_access".version + 1`,
-        [groupId, tenantId, days, at.toISOString(), by],
+        [groupId, tenantId, days, instant(at), by],
       )
     },
 
@@ -481,7 +484,7 @@ export function createStore(db: Queryable, schema: string) {
     async expiredAwaiting(at: Date, limit: number): Promise<StoredChange[]> {
       const { rows } = await query<ChangeRow>(
         `select * from ${s}."pending_change" where state = 'awaiting-approval' and expires_at is not null and expires_at <= $1 order by expires_at limit $2 for update skip locked`,
-        [at.toISOString(), limit],
+        [instant(at), limit],
       )
       return rows.map(toChange)
     },
@@ -490,7 +493,7 @@ export function createStore(db: Queryable, schema: string) {
     async dueDelayed(at: Date, limit: number): Promise<string[]> {
       const { rows } = await query<{ change_id: string }>(
         `select change_id from ${s}."pending_change" where state = 'delayed' and delay_ends_at is not null and delay_ends_at <= $1 order by delay_ends_at limit $2`,
-        [at.toISOString(), limit],
+        [instant(at), limit],
       )
       return rows.map(row => row.change_id)
     },
@@ -553,19 +556,19 @@ export function createStore(db: Queryable, schema: string) {
     },
 
     /** Delivered outbox events older than `before`. */
-    async deleteDeliveredEvents(before: Date): Promise<number> {
+    async deleteDeliveredEvents(before: When): Promise<number> {
       const { rows } = await query<{ n: string }>(
         `with gone as (delete from ${s}."outbox" where published_at is not null and published_at <= $1 returning 1) select count(*) as n from gone`,
-        [before.toISOString()],
+        [instant(before)],
       )
       return Number(rows[0]?.n ?? 0)
     },
 
     /** Changes decided before `before`, oldest first: candidates for retention. */
-    async decidedBefore(before: Date, limit: number): Promise<{ changeId: string, groupId: string }[]> {
+    async decidedBefore(before: When, limit: number): Promise<{ changeId: string, groupId: string }[]> {
       const { rows } = await query<{ change_id: string, group_id: string }>(
         `select change_id, group_id from ${s}."pending_change" where decided_at is not null and decided_at <= $1 order by decided_at, change_id limit $2`,
-        [before.toISOString(), limit],
+        [instant(before), limit],
       )
       return rows.map(row => ({ changeId: row.change_id, groupId: row.group_id }))
     },
