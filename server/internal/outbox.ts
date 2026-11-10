@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { AuthorisationEvent, AuthorisationEventPublisher, AuthorisationEventType } from '../../contracts'
 import { AuthorisationFailure, authorisationEventSchema } from '../../contracts'
 import type { Database, Queryable } from './database'
+import { instant } from './time'
 
 /**
  * PRIVATE. Authorisation's transactional outbox (docs/contracts.md §8).
@@ -18,7 +19,7 @@ export async function enqueue(client: Queryable, schema: string, input: EventInp
   const event = authorisationEventSchema.parse({
     eventId: randomUUID(),
     type: input.type,
-    occurredAt: context.at.toISOString(),
+    occurredAt: instant(context.at),
     correlationId: context.correlationId,
     actorPrincipalId: context.actorPrincipalId,
     data: input.data,
@@ -66,7 +67,7 @@ export async function relayOutbox(db: Database, publisher: AuthorisationEventPub
         break
       }
     }
-    if (done.length > 0) await client.query(`select ${db.schema}.mark_outbox_published($1::bigint[], $2)`, [done, at().toISOString()])
+    if (done.length > 0) await client.query(`select ${db.schema}.mark_outbox_published($1::bigint[], $2)`, [done, instant(at())])
     return { published: done.length, failed }
   })
 }

@@ -45,6 +45,7 @@ import type { AuthorisationService } from './service'
 import { createWriter, io, isBuiltInRole } from './service'
 import type { StoredChange } from './store'
 import { createStore } from './store'
+import { after, instant, later, plus, secondsBetween } from './time'
 
 /**
  * PRIVATE. The approvals engine for access administration (docs/contracts.md
@@ -120,8 +121,6 @@ function parse<T>(run: () => T): T {
 }
 
 const conflict = (reason: string) => new AuthorisationFailure('conflict', reason)
-const hours = (at: Date, n: number) => new Date(at.getTime() + n * 3_600_000).toISOString()
-const later = (a: string | null, b: string | null) => (a === null ? b : b === null ? a : Date.parse(a) >= Date.parse(b) ? a : b)
 
 /** The resource an administration permission is decided on: the group itself. */
 export const groupResource = (permission: string, groupId: string): AuthorisationResource =>
@@ -229,7 +228,7 @@ export function createChanges(deps: ChangesDependencies) {
       case 'role.assign': {
         const target = change.target as AuthorisationChangeTarget<'role.assign'>
         if (target.roleId === 'owner') throw conflict('owner-role')
-        if (target.expiresAt && !(Date.parse(target.expiresAt) > at.getTime())) throw conflict('expiry-in-the-past')
+        if (target.expiresAt && !after(target.expiresAt, at)) throw conflict('expiry-in-the-past')
         const role = await findRole(q, change.tenantId, target.roleId)
         if (!role) throw conflict('unknown-role')
         if (!(await memberOf(target.principalId, target.groupId))) throw conflict('not-a-member')
@@ -251,7 +250,7 @@ export function createChanges(deps: ChangesDependencies) {
         const target = change.target as AuthorisationChangeTarget<'role.activate'>
         const held = await s.assignment(target)
         if (!held?.eligible) throw conflict('not-eligible')
-        if (held.expiresAt && !(Date.parse(held.expiresAt) > at.getTime())) throw conflict('not-eligible')
+        if (held.expiresAt && !after(held.expiresAt, at)) throw conflict('not-eligible')
         const role = await findRole(q, change.tenantId, target.roleId)
         if (!role) throw conflict('unknown-role')
         if (!(await memberOf(target.principalId, target.groupId))) throw conflict('not-a-member')
@@ -338,7 +337,7 @@ export function createChanges(deps: ChangesDependencies) {
     }
     switch (request.type) {
       case 'role.assign': {
-        const target = { ...request.target, scope: request.target.scope ?? 'group', expiresAt: request.target.expiresAt ? new Date(request.target.expiresAt).toISOString() : null }
+        const target = { ...request.target, scope: request.target.scope ?? 'group', expiresAt: request.target.expiresAt ? instant(request.target.expiresAt) : null }
         return { group: await known(target.groupId), beneficiaryId: target.principalId, target }
       }
       case 'role.unassign':
@@ -355,7 +354,7 @@ export function createChanges(deps: ChangesDependencies) {
             resource: grant.resource,
             subject: grant.subject,
             permissions: [...new Set(grant.permissions)].sort(),
-            expiresAt: grant.expiresAt === null ? null : new Date(grant.expiresAt).toISOString(),
+            expiresAt: grant.expiresAt === null ? null : instant(grant.expiresAt),
           },
         }
         return { group: await known(grant.resource.owningGroupId), beneficiaryId: grant.subject.kind === 'principal' ? grant.subject.principalId : null, target: normalised }
@@ -447,7 +446,7 @@ export function createChanges(deps: ChangesDependencies) {
    */
   async function settle(client: Queryable, change: StoredChange, at: Date, deciderId: string | null): Promise<StoredChange> {
     const s = createStore(client, schemaName)
-    if (change.heldUntil !== null && Date.parse(change.heldUntil) > at.getTime()) {
+    if (change.heldUntil !== null && after(change.heldUntil, at)) {
       return s.updateChange(change.changeId, { state: 'delayed', delayEndsAt: later(change.delayEndsAt, change.heldUntil) })
     }
     await client.query('savepoint authorisation_apply')
@@ -462,7 +461,7 @@ export function createChanges(deps: ChangesDependencies) {
     }
     await client.query('release savepoint authorisation_apply')
     const state = failure ? 'rejected' : 'applied'
-    const settled = await s.updateChange(change.changeId, { state, decidedAt: at.toISOString(), failure })
+    const settled = await s.updateChange(change.changeId, { state, decidedAt: instant(at), failure })
     await enqueue(client, db.schema, { type: 'authorisation.change-decided', data: decidedData(settled, state) }, { actorPrincipalId: deciderId, correlationId: change.correlationId, at })
     return settled
   }
@@ -494,10 +493,10 @@ export function createChanges(deps: ChangesDependencies) {
         const target = change.target as AuthorisationChangeTarget<'role.activate'>
         // From when it applies, never longer than the assignment itself.
         const held = await writer.store.assignment(target, true)
-        let until = new Date(at.getTime() + target.minutes * 60_000)
-        if (held?.expiresAt && Date.parse(held.expiresAt) < until.getTime()) until = new Date(held.expiresAt)
+        let until = plus(at, { minutes: target.minutes })
+        if (held?.expiresAt && after(until, held.expiresAt)) until = instant(held.expiresAt)
         if (!(await writer.store.activate(target, until))) throw conflict('not-eligible')
-        await writer.emit({ type: 'authorisation.role-activated', data: { principalId: target.principalId, groupId: target.groupId, roleId: target.roleId, activeUntil: until.toISOString(), changeId: change.changeId } })
+        await writer.emit({ type: 'authorisation.role-activated', data: { principalId: target.principalId, groupId: target.groupId, roleId: target.roleId, activeUntil: until, changeId: change.changeId } })
         return
       }
       case 'role.unassign': {
@@ -508,7 +507,7 @@ export function createChanges(deps: ChangesDependencies) {
       case 'assignment.confirm': {
         const target = change.target as AuthorisationChangeTarget<'assignment.confirm'>
         if (!(await writer.store.confirm(target, change.requesterId, at))) throw conflict('not-assigned')
-        await writer.emit({ type: 'authorisation.assignment-confirmed', data: { ...target, confirmedAt: at.toISOString(), changeId: change.changeId } })
+        await writer.emit({ type: 'authorisation.assignment-confirmed', data: { ...target, confirmedAt: instant(at), changeId: change.changeId } })
         return
       }
       case 'grant.create': {
@@ -548,7 +547,7 @@ export function createChanges(deps: ChangesDependencies) {
   }
 
   async function expire(client: Queryable, change: StoredChange, at: Date): Promise<StoredChange> {
-    const expired = await createStore(client, schemaName).updateChange(change.changeId, { state: 'expired', decidedAt: at.toISOString() })
+    const expired = await createStore(client, schemaName).updateChange(change.changeId, { state: 'expired', decidedAt: instant(at) })
     await enqueue(client, db.schema, { type: 'authorisation.change-decided', data: decidedData(expired, 'expired') }, { actorPrincipalId: null, correlationId: change.correlationId, at })
     return expired
   }
@@ -580,7 +579,7 @@ export function createChanges(deps: ChangesDependencies) {
       const { risk, riskier } = await io('store', () => assess(db, { type: request.type, target: located.target, tenantId: group.tenantId, groupId: group.groupId }, at))
       if (facts.approvals.referenceRequired && !request.justification.reference && !inPersonal) throw new AuthorisationFailure('validation-failed', 'reference-missing')
       const assurance: AuthorisationAssuranceRecord = { level: subject.assurance.level, phishingResistant: subject.assurance.phishingResistant, authenticatedAt: subject.authenticatedAt }
-      if (!meetsStepUp(assurance, STEP_UP_REQUIREMENTS[risk], at)) throw new AuthorisationFailure('insufficient-assurance')
+      if (!meetsStepUp(assurance, STEP_UP_REQUIREMENTS[risk], secondsBetween(assurance.authenticatedAt, at))) throw new AuthorisationFailure('insufficient-assurance')
 
       // The route: qualifying approvers in the group, excluding the requester, the beneficiary and whoever the requester controls; then the owners above; else a published delay.
       const requirement = approvalRequirement({ risk, inRequestersPersonalGroup: inPersonal, groupRequirement: facts.approvals.required })
@@ -598,8 +597,8 @@ export function createChanges(deps: ChangesDependencies) {
       const periods = facts.safetyPeriods
       const delayed = route === 'published-delay'
       let heldUntil: string | null = null
-      if (facts.requester.recoveryHoldUntil && Date.parse(facts.requester.recoveryHoldUntil) > at.getTime()) heldUntil = new Date(facts.requester.recoveryHoldUntil).toISOString()
-      if (riskier) heldUntil = later(heldUntil, hours(at, periods.recoveryHoldHours))
+      if (facts.requester.recoveryHoldUntil && after(facts.requester.recoveryHoldUntil, at)) heldUntil = instant(facts.requester.recoveryHoldUntil)
+      if (riskier) heldUntil = later(heldUntil, plus(at, { hours: periods.recoveryHoldHours }))
       const changeId = randomUUID()
       const record = {
         changeId,
@@ -616,8 +615,8 @@ export function createChanges(deps: ChangesDependencies) {
         basis: { approvals: facts.approvals, parentGroupId: facts.parentGroupId, rootGroupId: facts.rootGroupId },
       }
       const changeDigest = digestOf(digestInput(record))
-      const delayEndsAt = delayed ? later(hours(at, risk === 'critical' ? periods.publishedDelayCriticalHours : periods.publishedDelayHighHours), heldUntil) : null
-      const expiresAt = route === 'approvers' || route === 'parent-owner' || route === 'tenant-owner' ? hours(at, periods.approvalExpiryDays * 24) : null
+      const delayEndsAt = delayed ? later(plus(at, { hours: risk === 'critical' ? periods.publishedDelayCriticalHours : periods.publishedDelayHighHours }), heldUntil) : null
+      const expiresAt = route === 'approvers' || route === 'parent-owner' || route === 'tenant-owner' ? plus(at, { days: periods.approvalExpiryDays }) : null
 
       const recorded = await io('store', () => db.transaction(async (client) => {
         const s = createStore(client, schemaName)
@@ -629,7 +628,7 @@ export function createChanges(deps: ChangesDependencies) {
           heldUntil,
           state: delayed ? 'delayed' : 'awaiting-approval',
           correlationId,
-          createdAt: at.toISOString(),
+          createdAt: instant(at),
         })
         if (route === 'none') change = await settle(client, change, at, subject.principalId)
         const context = { actorPrincipalId: subject.principalId, correlationId, at }
@@ -662,7 +661,7 @@ export function createChanges(deps: ChangesDependencies) {
       const qualifies = !involved && await qualifiesFor(change, subject.principalId)
       if (!involved && !qualifies) throw new AuthorisationFailure('forbidden')
       const at = now()
-      if (change.state === 'awaiting-approval' && change.expiresAt && Date.parse(change.expiresAt) <= at.getTime()) {
+      if (change.state === 'awaiting-approval' && change.expiresAt && !after(change.expiresAt, at)) {
         return publicChange(await io('store', () => db.transaction(async (client) => {
           const locked = await createStore(client, schemaName).change(changeId, true)
           return locked?.state === 'awaiting-approval' ? expire(client, locked, at) : locked!
@@ -670,7 +669,7 @@ export function createChanges(deps: ChangesDependencies) {
       }
       const facts = await governed(change.groupId, change.requesterId, input.correlationId)
       const assurance: AuthorisationAssuranceRecord = { level: subject.assurance.level, phishingResistant: subject.assurance.phishingResistant, authenticatedAt: subject.authenticatedAt }
-      const refusal = refuseApproval({ change, approverId: subject.principalId, qualifies, controls: facts?.requester.controls ?? [], assurance, changeDigest: digest, now: at })
+      const refusal = refuseApproval({ change, approverId: subject.principalId, qualifies, controls: facts?.requester.controls ?? [], assurance, changeDigest: digest, authenticationAgeSeconds: secondsBetween(assurance.authenticatedAt, at) })
       if (refusal === 'insufficient-assurance') throw new AuthorisationFailure('insufficient-assurance')
       if (refusal) throw conflict(refusal)
       if (digestOf(digestInput(change)) !== change.changeDigest) throw conflict('change-differs')
@@ -679,10 +678,10 @@ export function createChanges(deps: ChangesDependencies) {
         const s = createStore(client, schemaName)
         const locked = await s.change(changeId, true)
         if (!locked || locked.version !== change.version || locked.state !== 'awaiting-approval') throw conflict('not-pending')
-        const approval: AuthorisationApprovalRecord = { approverId: subject.principalId, decision: input.decision, decidedAt: at.toISOString(), assurance, changeDigest: digest }
+        const approval: AuthorisationApprovalRecord = { approverId: subject.principalId, decision: input.decision, decidedAt: instant(at), assurance, changeDigest: digest }
         const approvals = [...locked.approvals, approval]
         if (input.decision === 'reject') {
-          const rejected = await s.updateChange(changeId, { state: 'rejected', approvals, decidedAt: at.toISOString() })
+          const rejected = await s.updateChange(changeId, { state: 'rejected', approvals, decidedAt: instant(at) })
           await enqueue(client, db.schema, { type: 'authorisation.change-decided', data: decidedData(rejected, 'rejected') }, { actorPrincipalId: subject.principalId, correlationId: locked.correlationId, at })
           return rejected
         }
@@ -705,7 +704,7 @@ export function createChanges(deps: ChangesDependencies) {
         const s = createStore(client, schemaName)
         const locked = await s.change(changeId, true)
         if (!locked || !OPEN_CHANGE_STATES.includes(locked.state)) throw conflict('not-pending')
-        const done = await s.updateChange(changeId, { state: 'cancelled', decidedAt: at.toISOString() })
+        const done = await s.updateChange(changeId, { state: 'cancelled', decidedAt: instant(at) })
         await enqueue(client, db.schema, { type: 'authorisation.change-decided', data: decidedData(done, 'cancelled') }, { actorPrincipalId: subject.principalId, correlationId: locked.correlationId, at })
         return done
       }))
@@ -748,7 +747,7 @@ export function createChanges(deps: ChangesDependencies) {
         try {
           const settled = await db.transaction(async (client) => {
             const locked = await createStore(client, schemaName).change(changeId, true)
-            if (!locked || locked.state !== 'delayed' || !locked.delayEndsAt || Date.parse(locked.delayEndsAt) > at.getTime()) return null
+            if (!locked || locked.state !== 'delayed' || !locked.delayEndsAt || after(locked.delayEndsAt, at)) return null
             return settle(client, locked, at, null)
           })
           if (settled?.state === 'applied') appliedChanges += 1

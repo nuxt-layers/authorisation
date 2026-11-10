@@ -24,10 +24,11 @@ describe('Authorisation repository foundation', () => {
     expect(manifest.publicExports).toEqual(Object.keys(pkg.exports))
   })
 
-  it('provides the Authorisation contract and requires Authentication and Identity by contract only', () => {
+  it('provides the Authorisation contract and requires Authentication and Identity by contract only, and Clock as its one layer package', () => {
     expect(manifest.provides).toEqual([{ capability: 'Authorisation', contractVersion: '4' }])
-    expect(manifest.requires.map((r: { capability: string }) => r.capability)).toEqual(['Authentication', 'Identity'])
-    expect(Object.keys(pkg.dependencies ?? {}).filter(name => name.startsWith('@nuxt-layers/'))).toEqual([])
+    expect(manifest.requires.map((r: { capability: string }) => r.capability)).toEqual(['Authentication', 'Identity', 'Clock'])
+    // Clock is the one layer it depends on as a package: dates and times are Clock's, never reimplemented here.
+    expect(Object.keys(pkg.dependencies ?? {}).filter(name => name.startsWith('@nuxt-layers/'))).toEqual(['@nuxt-layers/clock'])
   })
 
   it('declares database, directory, governance, subject resolver and permissions as required ports and the rest as optional', () => {
@@ -37,6 +38,7 @@ describe('Authorisation repository foundation', () => {
 
   it('declares every runtime import as a dependency rather than relying on the host', () => {
     expect(pkg.dependencies).toHaveProperty('zod')
+    expect(pkg.dependencies).toHaveProperty('@nuxt-layers/clock')
     expect(pkg.peerDependencies).toHaveProperty('nuxt')
   })
 

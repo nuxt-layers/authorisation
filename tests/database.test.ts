@@ -27,6 +27,7 @@ import {
 } from '../server/utils/authorisation-composition'
 import { assignAuthorisationRole, authorise, createAuthorisationGrant } from '../server/utils/authorisation-server'
 import { createTestDatabase, hasDatabase, requireDatabaseInCi } from './support/database'
+import { instantOf } from './support/instants'
 
 requireDatabaseInCi()
 
@@ -194,10 +195,10 @@ describe.skipIf(!hasDatabase)('authorisation storage and decisions on PostgreSQL
   })
 
   describe('the clock, through the public server functions', () => {
-    let at = new Date('2030-01-01T00:00:00.000Z')
-    const minutes = (n: number) => new Date(Date.parse('2030-01-01T00:00:00.000Z') + n * 60_000)
+    let at = new Date('2030-01-01T00:00:00Z')
+    const minutes = (n: number) => new Date(Date.parse('2030-01-01T00:00:00Z') + n * 60_000)
     const signedIn = (principalId: string): AuthorisationSubject =>
-      ({ principalId, authenticatedAt: '2030-01-01T00:00:00.000Z', assurance: { level: 'aal2', phishingResistant: true } })
+      ({ principalId, authenticatedAt: '2030-01-01T00:00:00Z', assurance: { level: 'aal2', phishingResistant: true } })
 
     beforeEach(() => {
       clearAuthorisationComposition()
@@ -224,15 +225,15 @@ describe.skipIf(!hasDatabase)('authorisation storage and decisions on PostgreSQL
       member('frank', 'sales')
       at = minutes(0)
       // In the past by the clock, though still in the future by the system's.
-      await expect(createAuthorisationGrant({ grant: { resource: { type: 'orders', id: 'order-clock' }, subject: { kind: 'principal', principalId: 'frank' }, permissions: ['orders:view'], expiresAt: '2029-12-31T23:00:00.000Z' }, actorPrincipalId: 'alice' }))
+      await expect(createAuthorisationGrant({ grant: { resource: { type: 'orders', id: 'order-clock' }, subject: { kind: 'principal', principalId: 'frank' }, permissions: ['orders:view'], expiresAt: '2029-12-31T23:00:00Z' }, actorPrincipalId: 'alice' }))
         .rejects.toMatchObject({ code: 'validation-failed' })
-      const grantId = await createAuthorisationGrant({ grant: { resource: { type: 'orders', id: 'order-clock' }, subject: { kind: 'principal', principalId: 'frank' }, permissions: ['orders:view', 'orders:purge'], expiresAt: '2030-01-01T01:00:00.000Z' }, actorPrincipalId: 'alice' })
+      const grantId = await createAuthorisationGrant({ grant: { resource: { type: 'orders', id: 'order-clock' }, subject: { kind: 'principal', principalId: 'frank' }, permissions: ['orders:view', 'orders:purge'], expiresAt: '2030-01-01T01:00:00Z' }, actorPrincipalId: 'alice' })
       const { rows } = await pool.query(`select created_at from "authorisation"."grant" where grant_id = $1`, [grantId])
       expect(rows[0].created_at.toISOString()).toBe('2030-01-01T00:00:00.000Z')
       expect(await assignAuthorisationRole({ principalId: 'frank', groupId: 'sales', roleId: 'viewer', actorPrincipalId: 'system' })).toBe(true)
       const assigned = await pool.query(`select created_at from "authorisation"."role_assignment" where principal_id = 'frank' and role_id = 'viewer'`)
       expect(assigned.rows[0].created_at.toISOString()).toBe('2030-01-01T00:00:00.000Z')
-      expect((await outbox()).at(-1)).toMatchObject({ type: 'authorisation.role-assigned', occurredAt: '2030-01-01T00:00:00.000Z' })
+      expect((await outbox()).at(-1)).toMatchObject({ type: 'authorisation.role-assigned', occurredAt: '2030-01-01T00:00:00Z' })
 
       const purge = () => authorise({ subject: signedIn('frank'), permission: 'orders:purge', resource: order('sales', 'order-clock') })
       const view = () => authorise({ subject: signedIn('frank'), permission: 'orders:view', resource: order('sales', 'order-clock') })
@@ -241,7 +242,7 @@ describe.skipIf(!hasDatabase)('authorisation storage and decisions on PostgreSQL
       // Twenty minutes after signing in, by the clock: too long ago for a critical permission.
       at = minutes(20)
       expect(await purge()).toMatchObject({ allowed: false, reason: 'insufficient-assurance' })
-      expect(denials.at(-1)).toMatchObject({ type: 'authorisation.denied', permission: 'orders:purge', occurredAt: minutes(20).toISOString() })
+      expect(denials.at(-1)).toMatchObject({ type: 'authorisation.denied', permission: 'orders:purge', occurredAt: instantOf(minutes(20)) })
       // Only the grant now: past its expiry by the clock it no longer counts, though by the system's clock it has years to run.
       await pool.query(`delete from "authorisation"."role_assignment" where principal_id = 'frank'`)
       expect(await view()).toMatchObject({ allowed: true, via: 'grant' })
@@ -322,7 +323,7 @@ describe.skipIf(!hasDatabase)('authorisation storage and decisions on PostgreSQL
 
   it('ends a time-limited assignment at once, before maintenance removes it', async () => {
     member('jay', 'sales')
-    let at = new Date('2030-01-01T00:00:00.000Z')
+    let at = new Date('2030-01-01T00:00:00Z')
     const timed = createService({
       db: createDatabase(pool, 'authorisation'),
       schemaName: 'authorisation',
@@ -332,13 +333,13 @@ describe.skipIf(!hasDatabase)('authorisation storage and decisions on PostgreSQL
       emitDenial: async () => {},
       now: () => at,
     })
-    await expect(timed.assign({ principalId: 'jay', groupId: 'sales', roleId: 'viewer', expiresAt: '2029-12-31T00:00:00.000Z', actorPrincipalId: 'system' })).rejects.toMatchObject({ reason: 'expiry-in-the-past' })
-    expect(await timed.assign({ principalId: 'jay', groupId: 'sales', roleId: 'viewer', expiresAt: '2030-01-01T01:00:00.000Z', actorPrincipalId: 'system' })).toBe(true)
+    await expect(timed.assign({ principalId: 'jay', groupId: 'sales', roleId: 'viewer', expiresAt: '2029-12-31T00:00:00Z', actorPrincipalId: 'system' })).rejects.toMatchObject({ reason: 'expiry-in-the-past' })
+    expect(await timed.assign({ principalId: 'jay', groupId: 'sales', roleId: 'viewer', expiresAt: '2030-01-01T01:00:00Z', actorPrincipalId: 'system' })).toBe(true)
     const view = () => timed.authorise({ subject: { principalId: 'jay', authenticatedAt: at.toISOString(), assurance: { level: 'aal2', phishingResistant: true } }, permission: 'orders:view', resource: order('sales') })
     expect((await view()).allowed).toBe(true)
-    at = new Date('2030-01-01T01:00:00.000Z')
+    at = new Date('2030-01-01T01:00:00Z')
     expect((await view()).allowed).toBe(false)
-    expect(await timed.listAssignments({ principalId: 'jay' })).toEqual([{ principalId: 'jay', groupId: 'sales', roleId: 'viewer', scope: 'group', expiresAt: '2030-01-01T01:00:00.000Z' }])
+    expect(await timed.listAssignments({ principalId: 'jay' })).toEqual([{ principalId: 'jay', groupId: 'sales', roleId: 'viewer', scope: 'group', expiresAt: '2030-01-01T01:00:00Z' }])
   })
 
   describe('qualification for approvals', () => {
