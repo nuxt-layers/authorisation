@@ -1,88 +1,72 @@
-# @nuxt4-layers/authorisation
+# authorisation
 
-> **AI-Driven Development**
->
-> This repository is part of [Nuxt 4 Layers](https://github.com/nuxt4-layers), an experimental, AI-driven software engineering initiative.
->
-> AI performs the principal architecture, development, testing, security assessment and documentation activities under human direction. The project owner retains authority over requirements, governance, acceptance and releases.
->
-> **Our objective is to demonstrate that disciplined, specification-led AI development can deliver secure, maintainable, standards-compliant, production-quality open-source software.**
->
-> All contributions are subject to the same engineering standards, quality controls and repository policies, regardless of origin. See the [AI development methodology](https://github.com/nuxt4-layers/platform-architecture/blob/master/AI_DEVELOPMENT.md).
+> **In short:** a Nuxt foundation layer that decides, on the server, whether a signed-in principal may perform an action on a group-owned resource, and administers roles, assignments and sharing through approved changes.
 
+> **AI-driven development.** This repository is part of Nuxt Layers, an experimental initiative in which AI does the principal architecture, development, testing, security assessment and documentation, under human direction. The project owner decides requirements, governance, acceptance and releases. Every contribution meets the same standards, whatever its origin; the method is the *Contributing* entry in [Resources](RESOURCES.md).
 
-A Nuxt 4 foundation layer that decides whether a signed-in principal may perform an action on a resource. It is governed by [`nuxt4-layers/platform-architecture`](https://github.com/nuxt4-layers/platform-architecture) (Identity and Authorization Architecture, ADR-0001, ADR-0002).
+`@nuxt-layers/authorisation` is a Foundation capability of the IAM suite: a headless core with an optional presentation part. It is governed by `nuxt-layers/architecture-rules`; the documents it follows are listed in [Resources](RESOURCES.md).
 
-**Status:** 1.0.0. Contract version 4 is frozen for 1.x; see [CHANGELOG.md](CHANGELOG.md) and the [roadmap](docs/roadmap.md).
-
-## What it does
+## Responsibility
 
 ```text
 subject + permission + resource + group context + roles + grants -> decision
 ```
 
-- **Groups own information.** Every resource belongs to one group: an organisation, company, club, committee, event, department and so on. Each group has at most one parent. Tenants are a separate isolation boundary, checked on their own.
-- **Every human identity has a personal group**, a unary group like a Unix user's own group, for the things a user keeps to themselves.
-- **Roles are held in groups** and count only while the holder is an active member. The hierarchy confers nothing by default: a role reaches child groups only when its assignment explicitly says so.
-- **Leaving a group ends the access it gave**, including to what the leaver created: creating something is provenance, not ownership. Joining one gives access up to the roles held there.
+**Owns:** the permission catalogue's rules, roles, role assignments, grants, the decision, pending changes and their approvals, each group's default roles and review interval, and its outbox.
+
+- **Groups own information.** Every resource belongs to one group. Each group has at most one parent. Tenants are a separate isolation boundary, checked on their own.
+- **Every human identity has a personal group**, for what a person keeps to themselves.
+- **Roles are held in groups** and count only while the holder is an active member. The hierarchy confers nothing by default: a role reaches child groups only when its assignment says so.
+- **Leaving a group ends the access it gave**, including to what the leaver created: creating something is provenance, not ownership.
 - **Grants** share one resource with another principal or group.
 - **Risk levels** demand stronger authentication: `high` needs AAL2, `critical` a recent, phishing-resistant sign-in.
-- **Changes need a second person** when they are risky: every change to roles, assignments, sharing and a group's access is requested, checked against the rules (no self-grant; owners follow Identity), approved where its risk demands it, and applied with its events in one transaction.
+- **Risky changes need a second person.** Every change to roles, assignments, sharing and a group's access is requested, checked against the rules, approved where its risk demands it, and applied with its events in one transaction.
 - Deny by default. No superuser. Enforcement is on the server only.
 
-## What it does not do
+**Does not own:** sign-in and sessions (Authentication); users, groups and memberships (Identity); personal data (Profile); domain data (the domain capabilities). It reads groups and memberships through a port and stores none of them.
 
-Sign-in and sessions (Authentication), users, groups and memberships (Identity), and domain data (the domain capabilities). It reads groups and memberships through a port and stores none of them.
+## Provides and requires
+
+- **Provides:** `Authorisation`.
+- **Requires:** `Authentication`, for the subject of each decision, and `Identity`, for groups, memberships and governance facts. Both reach it through ports the host fills; there is no package dependency on either.
+
+[`capability.json`](capability.json) records both, with contract versions and ports.
 
 ## Using it
 
-```ts
-// nuxt.config.ts of the host
-export default defineNuxtConfig({
-  extends: ['@nuxt4-layers/authorisation'],
-})
-```
+The [consumer contract](CONTRACT.md) is the complete integration interface: installation, settings, what the host passes, functions, permissions, screens and failure codes. A host needs no other document.
 
-```ts
-// server/plugins/authorisation.ts of the host
-export default defineNitroPlugin(() => {
-  provideAuthorisationDatabase({ dialect: 'postgres', pool })
-  provideAuthorisationDirectory(identityDirectoryAdapter)
-  provideAuthorisationGovernance(identityGovernanceAdapter) // iam-integration's authorisationGovernanceFromIdentity
-  provideAuthorisationSubjectResolver({ resolve: event => getAuthenticatedPrincipal(event) })
-  provideAuthorisationPermissions(ORDER_PERMISSIONS)
-})
-```
+## Compatibility
 
-```css
-/* the host's stylesheet, when it keeps the default pages */
-@import "@nuxt4-layers/theme-manager/presentation.css";
-@import "@nuxt4-layers/authorisation/tailwind.css";
-```
+The layer is built on Nuxt 4 and declares it as a peer dependency; `package.json` states the supported Nuxt and Node.js ranges, and the contract repeats them for hosts. Storage is PostgreSQL.
 
-Set `NUXT_AUTHORISATION_BASE_URL` to the host's origin, and schedule `runAuthorisationMaintenance()` and `relayAuthorisationOutbox({ publish })`. The default pages live at `/groups/:groupId/access`, `/groups/:groupId/sharing`, `/tenants/:tenantId/roles` and `/access-changes/:changeId`; move or disable them under `authorisation.pages` in `nuxt.config.ts`.
+## Documents
 
-Domain capabilities declare their permissions, e.g. `{ name: 'orders:process_refund', description: 'Refund an order', risk: 'high', effect: 'change' }`, and import types only from `@nuxt4-layers/authorisation/contracts`.
+- [Consumer contract](CONTRACT.md): the public integration interface.
+- [Detailed contract](docs/contracts.md): the rules behind each decision and change, for maintainers.
+- [Threat model and control register](docs/threat-model.md).
+- [Storage register](STORAGE-REGISTER.md): what is stored, why and for how long.
+- [Plan](PLAN.md): what is done and what is open.
+- [Changelog](CHANGELOG.md): major changes, newest first.
+- [Resources](RESOURCES.md): the governing architecture and suite processes relied on.
+- [Legacy layer review](docs/legacy-review.md): a historical record of what was kept from the earlier layer.
+- [Contributing](CONTRIBUTING.md) and [Security policy](SECURITY.md).
 
-## Documentation
-
-- [Contract](docs/contracts.md): permissions, roles, grants and how a decision is made
-- [Composition contract](docs/composition-contract.md): what a host supplies
-- [Threat model and control register](docs/threat-model.md)
-- [Roadmap](docs/roadmap.md)
-- [Legacy layer review](docs/legacy-review.md)
-
-## Development
+## Working on it
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev:prepare
 pnpm check             # nuxt typecheck + vitest
 pnpm build:playground  # proves the layer composes in a host
-pnpm test:e2e          # the default pages in Chromium, with axe (needs AUTHORISATION_TEST_DATABASE_URL)
+pnpm test:e2e          # the default pages in Chromium, with axe
 ```
 
-Requires Node 22 and pnpm 10.
+The database suites and the browser tests need `AUTHORISATION_TEST_DATABASE_URL`: the administrator URL of a local, disposable PostgreSQL. `package.json` names the package manager; the Quality workflow runs the same checks on every pull request.
+
+## Security and privacy
+
+Authorisation is security-critical: see the [threat model](docs/threat-model.md) and report vulnerabilities as the [security policy](SECURITY.md) says. It stores opaque identifiers, role and permission names, codes and instants, never names or email addresses; see the [storage register](STORAGE-REGISTER.md).
 
 ## Licence
 

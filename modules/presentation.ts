@@ -40,7 +40,7 @@ const PAGES: { key: keyof AuthorisationPagePaths, file: string, parameter: strin
 ]
 
 export default defineNuxtModule<AuthorisationModuleOptions>({
-  meta: { name: '@nuxt4-layers/authorisation/presentation', configKey: 'authorisation' },
+  meta: { name: '@nuxt-layers/authorisation/presentation', configKey: 'authorisation' },
   defaults: {
     presentation: true,
     pages: {

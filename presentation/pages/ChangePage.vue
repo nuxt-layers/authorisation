@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Default page provided by @nuxt4-layers/authorisation. Disable with authorisation.pages.enabled = false. */
+/** Default page provided by @nuxt-layers/authorisation. Disable with authorisation.pages.enabled = false. */
 const route = useRoute()
 const changeId = computed(() => String(route.params.changeId))
 const { t, locale } = useAuthorisationText()

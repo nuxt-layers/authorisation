@@ -1,14 +1,16 @@
 # Security policy
 
-`@nuxt4-layers/authorisation` decides who may do what, so we treat security
+> **In short:** report suspected vulnerabilities privately through this repository's Security tab, never in a public issue or pull request.
+
+`@nuxt-layers/authorisation` decides who may do what, so we treat security
 reports as our highest priority.
 
 ## Reporting a vulnerability
 
 **Do not open a public issue, discussion or pull request.** Report privately
-through GitHub: [Security → Report a vulnerability](https://github.com/nuxt4-layers/authorisation/security/advisories/new).
+through GitHub: this repository's **Security** tab, then **Report a vulnerability**.
 
-Please include the affected version or commit, the impact, and the steps or a
+Please include the affected commit, the impact, and the steps or a
 proof of concept to reproduce it. Never include real users' credentials or
 personal data.
 
@@ -18,7 +20,7 @@ unless you ask us not to.
 
 ## Supported versions
 
-Before 1.0, only the latest release on `master` receives fixes.
+Only the current `master` receives fixes. Formal releases are suspended during development.
 
 ## Scope
 

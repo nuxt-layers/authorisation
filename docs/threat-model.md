@@ -1,6 +1,8 @@
 # Threat Model and Control Register
 
-**Scope:** `@nuxt4-layers/authorisation`, contract version 4: decisions, storage, access administration (pending changes and approvals, default roles, time-limited assignments, access reviews, role documents), the transactional outbox, the `/api/authorisation/*` endpoints and the default pages.
+> **In short:** what Authorisation protects, the threats to it, and the control that answers each, with where it is tested.
+
+**Scope:** `@nuxt-layers/authorisation`, contract version 4: decisions, storage, access administration (pending changes and approvals, default roles, time-limited assignments, access reviews, role documents), the transactional outbox, the `/api/authorisation/*` endpoints and the default pages.
 **Baseline:** OWASP ASVS 5.0.0 Level 2, with Level 3 requirements for authorisation and tenant isolation where appropriate (Security Architecture §1). References are to ASVS 5.0.0 chapters (V8); mapping to individual requirement IDs is recorded in the phase 2 verification.
 
 ## 1. Assets
@@ -37,7 +39,7 @@
 | T7 | Decision reveals existence of resources or groups | Coarse HTTP error codes; detailed reasons stay server-side (V8) | `tests/contracts.test.ts` | Implemented |
 | T8 | Client-side enforcement relied on | No client decision API; enforcement is server-only (V8) | Architecture | Implemented |
 | T9 | Missing port leads to an implicit permissive store | Required ports fail closed (ADR-0002) | `tests/composition.test.ts` | Implemented |
-| T10 | Supply-chain compromise | Minimal dependencies (`zod`); `minimumReleaseAge`, `blockExoticSubdeps`, frozen lockfile, dependency review (development-only exceptions recorded in §4) | `pnpm-workspace.yaml`, workflows | Implemented |
+| T10 | Supply-chain compromise | Minimal dependencies (`zod`); the one Git-backed development dependency (Theme Manager) follows its `master`, resolved to a commit recorded in the lockfile; `minimumReleaseAge`, `blockExoticSubdeps`, frozen lockfile, dependency review (development-only exceptions recorded in §4) | `pnpm-workspace.yaml`, workflows | Implemented |
 | T11 | Unauthorised change to roles, assignments or grants | People change access only through pending changes: the requester must hold the layer's own `authorisation.*` permission on the governing group through its own decision at `strong` consistency and the risk's step-up; rules checked before recording and again when applying; the direct server functions are for the host's server code only (Identity's events), never an endpoint | `tests/administration.test.ts`, `tests/http.test.ts` | Implemented |
 | T12 | Last owner removed, locking a group out | Ownership is Identity's: it refuses removing a group's last active owner, and the `owner` role follows Identity's owners through iam-integration's adapters | Identity's approvals tests | Implemented in Identity |
 | T13 | Stale membership from a caching directory adapter | Consistency levels in the port: `strong` (no cache) for high and critical permissions, `bounded` (≤ 30 s) otherwise; directory failure fails closed; decisions never cached or embedded in sessions | `tests/database.test.ts` | Implemented |

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1",
-  "name": "@nuxt4-layers/authorisation",
+  "name": "@nuxt-layers/authorisation",
   "version": "1.0.0",
   "classification": "foundation",
   "provides": [

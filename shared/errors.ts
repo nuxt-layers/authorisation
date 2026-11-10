@@ -53,7 +53,7 @@ export class AuthorisationCompositionError extends Error {
   readonly port: string
 
   constructor(port: string) {
-    super(`Authorisation port '${port}' has not been supplied by the host application. See docs/composition-contract.md.`)
+    super(`Authorisation port '${port}' has not been supplied by the host application. See CONTRACT.md.`)
     this.name = 'AuthorisationCompositionError'
     this.port = port
   }
