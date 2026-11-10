@@ -36,6 +36,7 @@ import { enqueue } from './outbox'
 import type { AuthorisationService } from './service'
 import { createWriter, io } from './service'
 import { createStore } from './store'
+import { after, instant, plus } from './time'
 
 /**
  * PRIVATE. What the administration endpoints and pages read, each guarded by
@@ -74,7 +75,6 @@ function parse<T>(run: () => T): T {
   }
 }
 
-const DAY = 86_400_000
 
 /** The most candidate groups one visible-groups query decides. */
 const VISIBLE_GROUPS_MAX = 1000
@@ -83,7 +83,7 @@ export function createAdministration({ db, schemaName, service, changes, directo
   const store = createStore(db, schemaName)
   const subjectOf = (value: unknown) => parse(() => subjectSchema.parse(value)) as AuthorisationSubject
   const groupOf = (value: unknown) => parse(() => identifierSchema.parse(value))
-  const live = (at: Date) => (a: AuthorisationAssignmentView) => a.expiresAt === null || Date.parse(a.expiresAt) > at.getTime()
+  const live = (at: Date) => (a: AuthorisationAssignmentView) => a.expiresAt === null || after(a.expiresAt, at)
 
   async function knownGroup(groupId: string) {
     const group = await io('directory', () => directory.describeGroup(groupId, { consistency: 'strong' }))
@@ -105,7 +105,7 @@ export function createAdministration({ db, schemaName, service, changes, directo
   async function applyRetention(at: Date, correlationId: string, limit: number): Promise<{ outboxEvents: number, changes: number }> {
     const periods = policy?.retention ?? { outboxDays: 30, changeDays: 730 }
     const holds = legalHolds()
-    const candidates = holds ? await io('store', () => store.decidedBefore(new Date(at.getTime() - periods.changeDays * DAY), limit)) : []
+    const candidates = holds ? await io('store', () => store.decidedBefore(plus(at, { days: -periods.changeDays }), limit)) : []
     const free: string[] = []
     for (const candidate of candidates) {
       try {
@@ -117,7 +117,7 @@ export function createAdministration({ db, schemaName, service, changes, directo
     }
     return io('store', () => db.transaction(async (client) => {
       const s = createStore(client, schemaName)
-      const outboxEvents = await s.deleteDeliveredEvents(new Date(at.getTime() - periods.outboxDays * DAY))
+      const outboxEvents = await s.deleteDeliveredEvents(plus(at, { days: -periods.outboxDays }))
       const changes = await s.deleteChanges(free)
       if (outboxEvents + changes > 0) {
         await enqueue(client, db.schema, { type: 'authorisation.retention-applied', data: { outboxEvents, changes } }, { actorPrincipalId: null, correlationId, at })
@@ -160,8 +160,8 @@ export function createAdministration({ db, schemaName, service, changes, directo
         reviewIntervalDays: interval,
         entries: assignments.filter(live(at)).map((assignment) => {
           const lastConfirmedAt = assignment.confirmedAt ?? assignment.assignedAt
-          const reviewDueAt = interval === null ? null : new Date(Date.parse(lastConfirmedAt) + interval * DAY).toISOString()
-          return { ...assignment, lastConfirmedAt, reviewDueAt, overdue: reviewDueAt !== null && Date.parse(reviewDueAt) <= at.getTime() }
+          const reviewDueAt = interval === null ? null : plus(lastConfirmedAt, { days: interval })
+          return { ...assignment, lastConfirmedAt, reviewDueAt, overdue: reviewDueAt !== null && !after(reviewDueAt, at) }
         }),
       }
     },
@@ -234,7 +234,7 @@ export function createAdministration({ db, schemaName, service, changes, directo
         if (actor.personalGroup) candidates.add(actor.personalGroup.groupId)
       }
       for (const a of await io('store', () => store.assignmentsOf(subject.principalId))) {
-        if (a.expiresAt === null || Date.parse(a.expiresAt) > at.getTime()) candidates.add(a.groupId)
+        if (a.expiresAt === null || after(a.expiresAt, at)) candidates.add(a.groupId)
       }
       const groupIds: string[] = []
       for (const groupId of [...candidates].sort().slice(0, VISIBLE_GROUPS_MAX)) {
@@ -344,7 +344,7 @@ export function createAdministration({ db, schemaName, service, changes, directo
       parse(() => correlationIdSchema.parse(input.correlationId))
       if (!Array.isArray(input.groupIds) || input.groupIds.length > 100_000) throw new AuthorisationFailure('validation-failed')
       const groupIds = [...new Set(input.groupIds.map(groupOf))].sort()
-      const exportedAt = now().toISOString()
+      const exportedAt = instant(now())
       const roles = await documentFor(tenantId)
       const assignments: AuthorisationAssignmentView[] = []
       const grants: AuthorisationGrantView[] = []

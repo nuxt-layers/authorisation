@@ -49,7 +49,7 @@ async function remove(principal: string, role: string) {
 }
 
 async function assign() {
-  const expiresAt = endDate.value ? new Date(`${endDate.value}T00:00:00Z`).toISOString() : null
+  const expiresAt = endDate.value ? textOf.startOfDate(endDate.value) : null
   const change = await action.run(() => authorisation.requestChange({
     type: 'role.assign',
     target: { principalId: principalId.value.trim(), groupId: props.groupId, roleId: roleId.value, scope: descendants.value ? 'group-and-descendants' : 'group', expiresAt },

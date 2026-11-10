@@ -28,7 +28,7 @@ subject + permission + resource + group context + roles + grants -> decision
 ## Provides and requires
 
 - **Provides:** `Authorisation`.
-- **Requires:** `Authentication`, for the subject of each decision, and `Identity`, for groups, memberships and governance facts. Both reach it through ports the host fills; there is no package dependency on either.
+- **Requires:** `Authentication`, for the subject of each decision, and `Identity`, for groups, memberships and governance facts: both reach it through ports the host fills, with no package dependency on either. `Clock`, for every date and time operation: its one layer package dependency, composed by the host as a peer layer.
 
 [`capability.json`](capability.json) records both, with contract versions and ports.
 
@@ -38,7 +38,7 @@ The [consumer contract](CONTRACT.md) is the complete integration interface: inst
 
 ## Compatibility
 
-The layer is built on Nuxt 4 and declares it as a peer dependency; `package.json` states the supported Nuxt and Node.js ranges, and the contract repeats them for hosts. Storage is PostgreSQL.
+The layer is built on Nuxt 4 and declares it as a peer dependency; `package.json` states the supported Nuxt and Node.js ranges, and the contract repeats them for hosts. The Node.js minimum is Clock's, which uses the runtime's native `Temporal`. Storage is PostgreSQL.
 
 ## Documents
 

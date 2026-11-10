@@ -16,7 +16,7 @@ export function authorisationErrorOf(error: unknown): AuthorisationErrorBody | n
  * hydrated, so a form never submits natively.
  */
 export function useAuthorisationAction() {
-  const { t, locale } = useAuthorisationText()
+  const { t, when: whenText } = useAuthorisationText()
   const pending = ref(false)
   const hydrated = ref(false)
   onMounted(() => { hydrated.value = true })
@@ -55,8 +55,7 @@ export function useAuthorisationAction() {
 
   /** What became of a requested change, in words. */
   function outcome(change: Pick<AuthorisationPendingChange, 'state' | 'delayEndsAt'>): string {
-    const when = change.delayEndsAt ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(change.delayEndsAt)) : ''
-    return t(`authorisation.outcome.${change.state}`, { when })
+    return t(`authorisation.outcome.${change.state}`, { when: whenText(change.delayEndsAt) })
   }
 
   return { pending, disabled, error, code, run, messageFor, outcome, t }
