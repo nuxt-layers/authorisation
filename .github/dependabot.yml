@@ -9,6 +9,16 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    # Major versions the current Nuxt cannot use. Remove each rule when Nuxt can.
+    ignore:
+      # nuxt typecheck and vue-tsc need TypeScript's JavaScript API, which 7.x
+      # does not have; the development baseline is 6.0.3 (ADR-0013).
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # Nuxt 4 runs on Nitro 2, which bundles h3 1.x. The h3 here exists so the
+      # unit tests run the same major version as a built host.
+      - dependency-name: h3
+        update-types: ["version-update:semver-major"]
     groups:
       development:
         dependency-type: development
