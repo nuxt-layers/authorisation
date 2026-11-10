@@ -10,7 +10,7 @@ Governed by `nuxt-layers/architecture-rules` (see `RESOURCES.md`); persistence f
 - `pnpm build:playground` proves the layer composes in a host
 - Single test file: `pnpm vitest run tests/<name>.test.ts`
 - Browser tests: `pnpm test:e2e` (builds the playground, then Playwright with axe in light and dark mode, port 3300). Needs `AUTHORISATION_TEST_DATABASE_URL`; locally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` if Playwright's own browser is not installed
-- Theme Manager follows `master` as `github:nuxt-layers/theme-manager#master` (ADR-0008; listed in `onlyBuiltDependencies`), never a tag or commit pin. Refresh the lockfile when its `master` advances; the lockfile must record the `codeload.github.com` tarball, never `git@github.com`
+- Theme Manager follows `master` as `github:nuxt-layers/theme-manager#master` (ADR-0008), never a tag or commit pin. Refresh the lockfile when its `master` advances; the lockfile must record the `codeload.github.com` tarball, never `git@github.com`
 
 ## Rules
 - Contract (`contracts/`, `shared/`) imports only zod. No Nuxt, Vue, h3, server code, drivers or other `@nuxt-layers/*` packages. Enforced by `tests/contracts.test.ts`.
@@ -34,4 +34,4 @@ Governed by `nuxt-layers/architecture-rules` (see `RESOURCES.md`); persistence f
 - Documents follow ADR-0010: external links only in `RESOURCES.md`, at a verified commit; plans and status only in `PLAN.md`; README, CONTRIBUTING and SECURITY hold no versions, pins or outside links.
 - No active code, configuration or current instruction names the former `nuxt4-layers` organisation or scope. Only historical records do: the changelog and `docs/legacy-review.md`.
 - Platform-agnostic: the layer and its tests run alike on Windows, macOS and Linux. Tests that compare file paths with import specifiers or routes pass them through `toPosix` (`tests/support/paths.ts`) first: Node's path functions answer with `\` on Windows.
-- Package manager: pnpm. Commit `pnpm-lock.yaml`.
+- Package manager: pnpm 12 through Corepack (`corepack pnpm …`), at the version `package.json` names; development and CI run Node.js 26.13.0 (ADR-0013). `engines` stays `>=22`: the consumer minimum is not raised to match. Commit `pnpm-lock.yaml`.
