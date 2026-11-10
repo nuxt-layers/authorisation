@@ -32,6 +32,6 @@ Governed by `nuxt-layers/architecture-rules` (see `RESOURCES.md`); persistence f
 - Defaults are secure; loosening policy requires a documented risk treatment.
 - Keep `CONTRACT.md` (the complete, standalone consumer contract: update it in the same change as any public API change), `docs/contracts.md`, `docs/threat-model.md` (control register), `STORAGE-REGISTER.md` and `PLAN.md` in step with code.
 - Documents follow ADR-0010: external links only in `RESOURCES.md`, at a verified commit; plans and status only in `PLAN.md`; README, CONTRIBUTING and SECURITY hold no versions, pins or outside links.
-- The role document format identifier `nuxt4-layers.authorisation.roles` is a persisted format name, kept deliberately; do not rename it.
+- No active code, configuration or current instruction names the former `nuxt4-layers` organisation or scope. Only historical records do: the changelog and `docs/legacy-review.md`.
 - Platform-agnostic: the layer and its tests run alike on Windows, macOS and Linux. Tests that compare file paths with import specifiers or routes pass them through `toPosix` (`tests/support/paths.ts`) first: Node's path functions answer with `\` on Windows.
 - Package manager: pnpm. Commit `pnpm-lock.yaml`.

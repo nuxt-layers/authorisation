@@ -568,7 +568,7 @@ describe.skipIf(!hasDatabase)('access administration on PostgreSQL', () => {
 
     it('exports roles as a versioned document, and imports only one whose digest matches and that removes nothing in use', async () => {
       const document = await exportAuthorisationRoles({ tenantId: 'tenant-a' })
-      expect(document).toMatchObject({ format: 'nuxt4-layers.authorisation.roles', formatVersion: 1, tenantId: 'tenant-a', roles: [expect.objectContaining({ id: 'clerk' })] })
+      expect(document).toMatchObject({ format: 'nuxt-layers.authorisation.roles', formatVersion: 1, tenantId: 'tenant-a', roles: [expect.objectContaining({ id: 'clerk' })] })
       const tampered = { ...document, roles: [{ ...document.roles[0]!, permissions: [{ pattern: 'orders:purge' }] }] }
       await expect(importAuthorisationRoles({ tenantId: 'tenant-a', document: tampered, correlationId: CORRELATION })).rejects.toMatchObject({ code: 'validation-failed', reason: 'digest-mismatch' })
       await expect(importAuthorisationRoles({ tenantId: 'tenant-b', document, correlationId: CORRELATION })).rejects.toMatchObject({ reason: 'tenant-mismatch' })

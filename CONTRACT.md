@@ -377,5 +377,5 @@ A host that draws its own screens must still:
 - **Service identities** hold roles like anyone, but never request, decide or approve a change, and are never allowed a `critical` permission.
 - **Grants stay in the tenant** unless `externalGrants` is on, and are bound to the owning group named when shared.
 - **Guests.** A guest's default role may never hold a `high` or `critical` permission.
-- **Role documents** carry the format identifier `nuxt4-layers.authorisation.roles` (`AUTHORISATION_ROLE_DOCUMENT_FORMAT`). It names the document format, not the package, and is unchanged so that existing documents and their digests stay valid.
+- **Role documents** carry the format identifier `nuxt-layers.authorisation.roles` (`AUTHORISATION_ROLE_DOCUMENT_FORMAT`), which the digest covers. A document exported under the former identifier is refused on import (`validation-failed`): export it again from the tenant.
 - **Unset base URL.** Without `NUXT_AUTHORISATION_BASE_URL` every state-changing request is `forbidden`.

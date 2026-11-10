@@ -169,7 +169,7 @@ describe('canonical JSON and role documents', () => {
   })
 
   it('refuses a role document with repeated role identifiers or another format', () => {
-    const document = { format: 'nuxt4-layers.authorisation.roles', formatVersion: 1, tenantId: 't', roles: [{ id: 'clerk', name: 'Clerk', permissions: [] }], digest: 'a'.repeat(64) }
+    const document = { format: 'nuxt-layers.authorisation.roles', formatVersion: 1, tenantId: 't', roles: [{ id: 'clerk', name: 'Clerk', permissions: [] }], digest: 'a'.repeat(64) }
     expect(roleDocumentSchema.safeParse(document).success).toBe(true)
     expect(roleDocumentSchema.safeParse({ ...document, roles: [...document.roles, ...document.roles] }).success).toBe(false)
     expect(roleDocumentSchema.safeParse({ ...document, formatVersion: 2 }).success).toBe(false)
