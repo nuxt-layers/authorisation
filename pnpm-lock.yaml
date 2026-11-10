@@ -181,7 +181,7 @@ importers:
         version: 4.13.0(playwright-core@1.64.0)
       '@nuxt-layers/theme-manager':
         specifier: github:nuxt-layers/theme-manager#master
-        version: git+https://github.com/nuxt-layers/theme-manager.git#1333f2ee1734d741acb088ec24a69125848c1527(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))
+        version: https://codeload.github.com/nuxt-layers/theme-manager/tar.gz/1333f2ee1734d741acb088ec24a69125848c1527(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))
       '@playwright/test':
         specifier: ^1.64.0
         version: 1.64.0
@@ -601,8 +601,8 @@ packages:
     peerDependencies:
       nuxt: ^4.6.0
 
-  '@nuxt-layers/theme-manager@git+https://github.com/nuxt-layers/theme-manager.git#1333f2ee1734d741acb088ec24a69125848c1527':
-    resolution: {commit: 1333f2ee1734d741acb088ec24a69125848c1527, repo: https://github.com/nuxt-layers/theme-manager.git, type: git}
+  '@nuxt-layers/theme-manager@https://codeload.github.com/nuxt-layers/theme-manager/tar.gz/1333f2ee1734d741acb088ec24a69125848c1527':
+    resolution: {gitHosted: true, integrity: sha512-LSELnb9o0Qc5nERX/5aAdGL3w7dlYhhiP+tdmeoXjCQ5ExpxLwfxyiupsd1R0gEPFyVE/OSrzyIuyHDzZnpmFQ==, tarball: https://codeload.github.com/nuxt-layers/theme-manager/tar.gz/1333f2ee1734d741acb088ec24a69125848c1527}
     version: 0.2.2
     engines: {node: '>=22'}
 
@@ -2415,8 +2415,8 @@ packages:
       encoding:
         optional: true
 
-  node-forge@1.4.0:
-    resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
+  node-forge@1.4.3:
+    resolution: {integrity: sha512-P6wzfh6t70avmV8FrVEAd/36sOPJQ+hkaJVX1Laap9J/77m7M0eyozDvc8SwnDf4P7MP94gwbAAo0rg3YVXT+g==}
     engines: {node: '>= 6.13.0'}
 
   node-gyp-build@4.8.4:
@@ -3923,7 +3923,7 @@ snapshots:
     dependencies:
       nuxt: 4.6.4(@babel/plugin-syntax-jsx@7.29.7(@babel/core@7.29.7(supports-color@10.2.2)))(@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7(supports-color@10.2.2)))(@oxc-project/types@0.156.0)(@types/node@26.6.6)(@vue/compiler-sfc@3.5.43)(acorn@8.19.0)(confbox@0.3.1)(db0@0.3.4)(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(ioredis@5.11.1(supports-color@10.2.2))(lightningcss@1.33.0)(mlly@1.8.2)(rolldown@1.2.18)(rollup-plugin-visualizer@7.1.1(rolldown@1.2.18)(rollup@4.68.1))(rollup@4.68.1)(srvx@1.0.5)(supports-color@10.2.2)(terser@5.51.2)(typescript@6.0.3)(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))(vue-tsc@3.3.12(typescript@6.0.3))
 
-  '@nuxt-layers/theme-manager@git+https://github.com/nuxt-layers/theme-manager.git#1333f2ee1734d741acb088ec24a69125848c1527(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))':
+  '@nuxt-layers/theme-manager@https://codeload.github.com/nuxt-layers/theme-manager/tar.gz/1333f2ee1734d741acb088ec24a69125848c1527(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))':
     dependencies:
       '@tailwindcss/vite': 4.3.3(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))
       tailwindcss: 4.3.3
@@ -5651,7 +5651,7 @@ snapshots:
       h3: 1.15.11
       http-shutdown: 1.2.2
       jiti: 2.7.0
-      node-forge: 1.4.0
+      node-forge: 1.4.3
       pathe: 2.0.3
       std-env: 4.3.0
       tinyclip: 0.1.15
@@ -5874,7 +5874,7 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
-  node-forge@1.4.0: {}
+  node-forge@1.4.3: {}
 
   node-gyp-build@4.8.4: {}
 
